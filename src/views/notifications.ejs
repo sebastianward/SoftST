@@ -1,0 +1,41 @@
+<%- include("partials/head", { title: "Notificaciones" }) %>
+<%- include("partials/header") %>
+
+<main class="page-shell">
+  <section class="panel">
+    <div class="panel-title">
+      <h1>Centro de notificaciones</h1>
+      <span>Base preparada para ampliar la logica mas adelante</span>
+    </div>
+
+    <% if (notifications.length === 0) { %>
+      <p class="empty-state">No hay notificaciones registradas.</p>
+    <% } else { %>
+      <div class="notification-list">
+        <% notifications.forEach((item) => { %>
+          <article class="notification-card <%= item.read_at ? "is-read" : "" %>">
+            <div>
+              <h2><%= item.title %></h2>
+              <p><strong>Ingreso:</strong> #<%= item.entry_id %></p>
+              <p><strong>Empresa:</strong> <%= item.business_name %></p>
+              <p><strong>Ingresado por:</strong> <%= item.worker_name_snapshot %></p>
+              <p><strong>Vence desde:</strong> <%= item.due_at %></p>
+              <p><strong>Detalle:</strong> <%= item.message %></p>
+            </div>
+            <div>
+              <% if (!item.read_at) { %>
+                <form action="/notifications/<%= item.id %>/read" method="post">
+                  <button type="submit">Marcar revisada</button>
+                </form>
+              <% } else { %>
+                <span class="read-pill">Revisada</span>
+              <% } %>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include("partials/foot") %>

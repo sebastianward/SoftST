@@ -1,0 +1,111 @@
+<%- include("partials/head", { title: "Nuevo ingreso" }) %>
+<%- include("partials/header") %>
+
+<main class="page-shell">
+  <section class="panel">
+    <div class="panel-title">
+      <h1>Nuevo ingreso de equipo</h1>
+      <span>Campos obligatorios marcados con *</span>
+    </div>
+
+    <% if (workers.length === 0) { %>
+      <div class="empty-state">
+        No hay trabajadores activos para asignar en "Ingresado por".
+        <% if (currentUser.role === "admin") { %>
+          <a href="/workers">Crea trabajadores primero</a>
+        <% } %>
+      </div>
+    <% } else { %>
+      <form class="entry-form" action="/entries" method="post" enctype="multipart/form-data">
+        <label>
+          Razon social *
+          <input type="text" name="businessName" value="<%= formData.businessName || "" %>" required>
+        </label>
+
+        <label>
+          R.U.T. *
+          <input type="text" name="rut" value="<%= formData.rut || "" %>" required>
+        </label>
+
+        <label>
+          Contacto *
+          <input type="text" name="contactName" value="<%= formData.contactName || "" %>" required>
+        </label>
+
+        <label>
+          Correo
+          <input type="email" name="contactEmail" value="<%= formData.contactEmail || "" %>">
+        </label>
+
+        <label>
+          Telefono
+          <input type="text" name="contactPhone" value="<%= formData.contactPhone || "" %>">
+        </label>
+
+        <label>
+          Propiedad
+          <input type="text" name="ownership" value="<%= formData.ownership || "" %>">
+        </label>
+
+        <label>
+          Sucursal
+          <input type="text" name="branchOffice" value="<%= formData.branchOffice || "" %>">
+        </label>
+
+        <label>
+          Equipo (marca y modelo) *
+          <input type="text" name="equipmentModel" value="<%= formData.equipmentModel || "" %>" required>
+        </label>
+
+        <label>
+          Serie
+          <input type="text" name="serialNumber" value="<%= formData.serialNumber || "" %>">
+        </label>
+
+        <label class="full-span">
+          Reporte de cliente *
+          <textarea name="clientReport" rows="4" required><%= formData.clientReport || "" %></textarea>
+        </label>
+
+        <label class="full-span">
+          Detalle y accesorios
+          <textarea name="detailsAccessories" rows="4"><%= formData.detailsAccessories || "" %></textarea>
+        </label>
+
+        <label>
+          Ingresado por *
+          <input
+            type="text"
+            name="workerName"
+            id="workerName"
+            list="workersList"
+            placeholder="Escribe o selecciona un trabajador"
+            value="<%= formData.workerName || "" %>"
+            autocomplete="off"
+            required
+          >
+          <input type="hidden" name="workerId" id="workerId" value="<%= formData.workerId || "" %>">
+          <datalist id="workersList">
+            <% workers.forEach((worker) => { %>
+              <option value="<%= worker.name %>" data-id="<%= worker.id %>"></option>
+            <% }) %>
+          </datalist>
+        </label>
+
+        <label class="full-span">
+          Imagenes del estado del equipo
+          <input id="images" type="file" name="images" accept="image/*" multiple>
+          <small>Puedes subir hasta 6 imagenes de 5 MB cada una.</small>
+        </label>
+
+        <div class="full-span image-preview" id="imagePreview"></div>
+
+        <div class="form-actions full-span">
+          <button type="submit">Guardar ingreso</button>
+        </div>
+      </form>
+    <% } %>
+  </section>
+</main>
+
+<%- include("partials/foot") %>

@@ -1,0 +1,41 @@
+<%- include("partials/head", { title: "Login" }) %>
+
+<main class="auth-shell">
+  <section class="auth-card">
+    <div class="auth-brand">
+      <img src="/public/img/logo-antalis-abitek.png" alt="Antalis Abitek">
+    </div>
+    <div class="auth-toolbar">
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar tema">
+        <span data-theme-label>Modo claro</span>
+      </button>
+    </div>
+    <h1>Ingreso de equipos</h1>
+    <p>Accede con tu usuario local para registrar ingresos o administrar trabajadores.</p>
+
+    <% if (flash) { %>
+      <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+    <% } %>
+
+    <form class="stack-form" action="/login" method="post">
+      <label>
+        Usuario
+        <input type="text" name="username" required>
+      </label>
+
+      <label>
+        Contrasena
+        <input type="password" name="password" required>
+      </label>
+
+      <button type="submit">Entrar</button>
+    </form>
+
+    <div class="auth-hint">
+      <strong>Credenciales iniciales:</strong>
+      <span>admin / admin, operator / operator123 y user / user123 por defecto.</span>
+    </div>
+  </section>
+</main>
+
+<%- include("partials/foot") %>

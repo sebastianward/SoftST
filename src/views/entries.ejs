@@ -1,0 +1,322 @@
+<%- include("partials/head", { title: "Ingresos" }) %>
+<%- include("partials/header") %>
+
+<main class="page-shell">
+  <section class="panel">
+    <div class="panel-title panel-title-workers">
+      <h1>Historial de ingresos</h1>
+      <div class="workers-toolbar">
+        <label class="workers-search">
+          <input type="search" id="entrySearch" placeholder="Buscar en cualquier campo">
+        </label>
+        <a class="button-link button-link-compact" href="/entries/new">Nuevo ingreso</a>
+      </div>
+    </div>
+
+    <% if (entries.length === 0) { %>
+      <p class="empty-state">No hay registros todavia.</p>
+    <% } else { %>
+      <div class="table-wrap entries-table-wrap">
+        <table class="entries-table" id="entriesTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Estado</th>
+              <th>Empresa</th>
+              <th>RUT</th>
+              <th>Contacto</th>
+              <th>Correo</th>
+              <th>Telefono</th>
+              <th>Propiedad</th>
+              <th>Sucursal</th>
+              <th>Equipo</th>
+              <th>Serie</th>
+              <th>Ingresado por</th>
+              <th>Creado por</th>
+              <th>SAP</th>
+              <th>Comentario</th>
+              <th>Tarea final</th>
+              <th>Cotizacion</th>
+              <th>OC</th>
+              <th>Reporte cliente</th>
+              <th>Detalle/accesorios</th>
+              <th>Imagenes</th>
+              <th>Fecha</th>
+              <% if (["admin", "operator"].includes(currentUser.role)) { %>
+                <th>Acciones</th>
+              <% } %>
+            </tr>
+          </thead>
+          <tbody>
+            <% entries.forEach((entry) => { %>
+              <% const searchable = [
+                entry.id,
+                entry.entry_status,
+                entry.business_name,
+                entry.rut,
+                entry.contact_name,
+                entry.contact_email,
+                entry.contact_phone,
+                entry.ownership,
+                entry.branch_office,
+                entry.equipment_model,
+                entry.serial_number,
+                entry.worker_name_snapshot,
+                entry.created_by_username,
+                entry.sap_code,
+                entry.comment,
+                entry.final_task,
+                entry.quotation,
+                entry.purchase_order,
+                entry.client_report,
+                entry.details_accessories,
+                entry.created_at
+              ].join(" ").toLowerCase(); %>
+              <tr data-entry-row data-search="<%= searchable %>">
+                <% if (["admin", "operator"].includes(currentUser.role)) { %>
+                  <form id="entry-form-<%= entry.id %>" action="/entries/<%= entry.id %>/update" method="post" class="table-form"></form>
+                    <td>#<%= entry.id %></td>
+                    <td class="col-status">
+                      <select name="entryStatus" form="entry-form-<%= entry.id %>" required>
+                        <% entryStatuses.forEach((status) => { %>
+                          <option value="<%= status.value %>" <%= entry.entry_status === status.value ? "selected" : "" %>><%= status.label %></option>
+                        <% }) %>
+                      </select>
+                    </td>
+                    <td><% if (currentUser.role === "admin") { %><input type="text" name="businessName" form="entry-form-<%= entry.id %>" value="<%= entry.business_name %>" required><% } else { %><span class="table-static"><%= entry.business_name %></span><% } %></td>
+                    <td><% if (currentUser.role === "admin") { %><input type="text" name="rut" form="entry-form-<%= entry.id %>" value="<%= entry.rut %>" required><% } else { %><span class="table-static"><%= entry.rut %></span><% } %></td>
+                    <td><% if (currentUser.role === "admin") { %><input type="text" name="contactName" form="entry-form-<%= entry.id %>" value="<%= entry.contact_name %>" required><% } else { %><span class="table-static"><%= entry.contact_name %></span><% } %></td>
+                    <td><% if (currentUser.role === "admin") { %><input type="email" name="contactEmail" form="entry-form-<%= entry.id %>" value="<%= entry.contact_email || "" %>"><% } else { %><span class="table-static"><%= entry.contact_email || "-" %></span><% } %></td>
+                    <td class="col-phone"><% if (currentUser.role === "admin") { %><input type="text" name="contactPhone" form="entry-form-<%= entry.id %>" value="<%= entry.contact_phone || "" %>"><% } else { %><span class="table-static"><%= entry.contact_phone || "-" %></span><% } %></td>
+                    <td><% if (currentUser.role === "admin") { %><input type="text" name="ownership" form="entry-form-<%= entry.id %>" value="<%= entry.ownership || "" %>"><% } else { %><span class="table-static"><%= entry.ownership || "-" %></span><% } %></td>
+                    <td><% if (currentUser.role === "admin") { %><input type="text" name="branchOffice" form="entry-form-<%= entry.id %>" value="<%= entry.branch_office || "" %>"><% } else { %><span class="table-static"><%= entry.branch_office || "-" %></span><% } %></td>
+                    <td><% if (currentUser.role === "admin") { %><input type="text" name="equipmentModel" form="entry-form-<%= entry.id %>" value="<%= entry.equipment_model %>" required><% } else { %><span class="table-static"><%= entry.equipment_model %></span><% } %></td>
+                    <td class="col-series"><% if (currentUser.role === "admin") { %><input type="text" name="serialNumber" form="entry-form-<%= entry.id %>" value="<%= entry.serial_number || "" %>"><% } else { %><span class="table-static"><%= entry.serial_number || "-" %></span><% } %></td>
+                    <td>
+                      <% if (currentUser.role === "admin") { %>
+                        <select name="workerId" form="entry-form-<%= entry.id %>" required>
+                          <% workers.forEach((worker) => { %>
+                            <option value="<%= worker.id %>" <%= Number(entry.worker_id) === Number(worker.id) ? "selected" : "" %>><%= worker.name %></option>
+                          <% }) %>
+                        </select>
+                      <% } else { %>
+                        <span class="table-static"><%= entry.worker_name_snapshot %></span>
+                      <% } %>
+                    </td>
+                    <td><span class="table-static"><%= entry.created_by_username %></span></td>
+                    <td><input type="text" name="sapCode" form="entry-form-<%= entry.id %>" value="<%= entry.sap_code || "" %>"></td>
+                    <td class="col-comment">
+                      <div class="comment-cell">
+                        <% if (entry.comment) { %>
+                          <p class="comment-preview"><%= entry.comment.length > 48 ? `${entry.comment.slice(0, 48)}...` : entry.comment %></p>
+                        <% } else { %>
+                          <span class="comment-indicator">Sin comentario</span>
+                        <% } %>
+                      </div>
+                      <button
+                        type="button"
+                        class="ghost-button comment-modal-trigger"
+                        data-comment-form="entry-form-<%= entry.id %>"
+                        data-comment-value="<%= entry.comment || "" %>"
+                      >
+                        <%= entry.comment ? "Ver / editar" : "Agregar comentario" %>
+                      </button>
+                      <input type="hidden" name="comment" form="entry-form-<%= entry.id %>" value="<%= entry.comment || "" %>">
+                    </td>
+                    <td><input type="text" name="finalTask" form="entry-form-<%= entry.id %>" value="<%= entry.final_task || "" %>"></td>
+                    <td><input type="text" name="quotation" form="entry-form-<%= entry.id %>" value="<%= entry.quotation || "" %>"></td>
+                    <td><input type="text" name="purchaseOrder" form="entry-form-<%= entry.id %>" value="<%= entry.purchase_order || "" %>"></td>
+                    <td class="col-comment">
+                      <div class="comment-cell">
+                        <% if (entry.client_report) { %>
+                          <p class="comment-preview"><%= entry.client_report.length > 48 ? `${entry.client_report.slice(0, 48)}...` : entry.client_report %></p>
+                        <% } else { %>
+                          <span class="comment-indicator">Sin reporte</span>
+                        <% } %>
+                      </div>
+                      <button
+                        type="button"
+                        class="ghost-button text-modal-trigger"
+                        data-text-form="entry-form-<%= entry.id %>"
+                        data-text-field="clientReport"
+                        data-text-title="Reporte cliente"
+                        data-text-value="<%= entry.client_report || "" %>"
+                      >
+                        <%= entry.client_report ? "Ver / editar" : "Agregar reporte" %>
+                      </button>
+                      <input type="hidden" name="clientReport" form="entry-form-<%= entry.id %>" value="<%= entry.client_report || "" %>">
+                    </td>
+                    <td class="col-comment">
+                      <div class="comment-cell">
+                        <% if (entry.details_accessories) { %>
+                          <p class="comment-preview"><%= entry.details_accessories.length > 48 ? `${entry.details_accessories.slice(0, 48)}...` : entry.details_accessories %></p>
+                        <% } else { %>
+                          <span class="comment-indicator">Sin detalle/acc</span>
+                        <% } %>
+                      </div>
+                      <button
+                        type="button"
+                        class="ghost-button text-modal-trigger"
+                        data-text-form="entry-form-<%= entry.id %>"
+                        data-text-field="detailsAccessories"
+                        data-text-title="Detalle y accesorios"
+                        data-text-value="<%= entry.details_accessories || "" %>"
+                      >
+                        <%= entry.details_accessories ? "Ver / editar" : "Agregar detalle" %>
+                      </button>
+                      <input type="hidden" name="detailsAccessories" form="entry-form-<%= entry.id %>" value="<%= entry.details_accessories || "" %>">
+                    </td>
+                    <td>
+                      <% if (entry.images.length === 0) { %>
+                        <span class="table-static">Sin imagenes</span>
+                      <% } else { %>
+                        <button
+                          type="button"
+                          class="ghost-button image-modal-trigger"
+                          data-images="<%= entry.images.join('|') %>"
+                        >
+                          Ver (<%= entry.images.length %>)
+                        </button>
+                      <% } %>
+                    </td>
+                    <td><span class="table-static"><%= entry.created_at %></span></td>
+                    <td>
+                      <div class="table-actions">
+                        <span class="print-status print-status-<%= entry.latest_print_status || 'pending' %>">
+                          Impresion:
+                          <%= ({
+                            pending: "Pendiente",
+                            processing: "Procesando",
+                            printed: "Impresa",
+                            failed: "Fallida"
+                          })[entry.latest_print_status || "pending"] %>
+                        </span>
+                        <div class="table-actions-buttons">
+                          <button type="submit" form="entry-form-<%= entry.id %>">Guardar</button>
+                          <% if (["admin", "operator"].includes(currentUser.role)) { %>
+                            <form action="/entries/<%= entry.id %>/reprint" method="post">
+                              <button type="submit" class="ghost-button">Reimprimir</button>
+                            </form>
+                          <% } %>
+                        </div>
+                      </div>
+                    </td>
+                <% } else { %>
+                  <td>#<%= entry.id %></td>
+                  <td class="col-status"><span class="status-pill"><%= entryStatuses.find((status) => status.value === entry.entry_status)?.label || entry.entry_status %></span></td>
+                  <td><%= entry.business_name %></td>
+                  <td><%= entry.rut %></td>
+                  <td><%= entry.contact_name %></td>
+                  <td><%= entry.contact_email || "-" %></td>
+                  <td class="col-phone"><%= entry.contact_phone || "-" %></td>
+                  <td><%= entry.ownership || "-" %></td>
+                  <td><%= entry.branch_office || "-" %></td>
+                  <td><%= entry.equipment_model %></td>
+                  <td class="col-series"><%= entry.serial_number || "-" %></td>
+                  <td><%= entry.worker_name_snapshot %></td>
+                  <td><%= entry.created_by_username %></td>
+                  <td><%= entry.sap_code || "-" %></td>
+                  <td class="col-comment">
+                    <% if (entry.comment) { %>
+                      <div class="comment-cell">
+                        <p class="comment-preview"><%= entry.comment.length > 48 ? `${entry.comment.slice(0, 48)}...` : entry.comment %></p>
+                      </div>
+                      <button
+                        type="button"
+                        class="ghost-button comment-modal-trigger"
+                        data-comment-readonly="true"
+                        data-comment-value="<%= entry.comment %>"
+                      >
+                        Ver comentario
+                      </button>
+                    <% } else { %>
+                      <div class="comment-cell">
+                        <span class="comment-indicator">Sin comentario</span>
+                      </div>
+                    <% } %>
+                  </td>
+                  <td><%= entry.final_task || "-" %></td>
+                  <td><%= entry.quotation || "-" %></td>
+                  <td><%= entry.purchase_order || "-" %></td>
+                  <td class="col-comment">
+                    <% if (entry.client_report) { %>
+                      <div class="comment-cell">
+                        <p class="comment-preview"><%= entry.client_report.length > 48 ? `${entry.client_report.slice(0, 48)}...` : entry.client_report %></p>
+                      </div>
+                      <button
+                        type="button"
+                        class="ghost-button text-modal-trigger"
+                        data-text-readonly="true"
+                        data-text-title="Reporte cliente"
+                        data-text-value="<%= entry.client_report %>"
+                      >
+                        Ver reporte
+                      </button>
+                    <% } else { %>
+                      <div class="comment-cell"><span class="comment-indicator">Sin reporte</span></div>
+                    <% } %>
+                  </td>
+                  <td class="col-comment">
+                    <% if (entry.details_accessories) { %>
+                      <div class="comment-cell">
+                        <p class="comment-preview"><%= entry.details_accessories.length > 48 ? `${entry.details_accessories.slice(0, 48)}...` : entry.details_accessories %></p>
+                      </div>
+                      <button
+                        type="button"
+                        class="ghost-button text-modal-trigger"
+                        data-text-readonly="true"
+                        data-text-title="Detalle y accesorios"
+                        data-text-value="<%= entry.details_accessories %>"
+                      >
+                        Ver detalle
+                      </button>
+                    <% } else { %>
+                      <div class="comment-cell"><span class="comment-indicator">Sin detalle/acc</span></div>
+                    <% } %>
+                  </td>
+                  <td>
+                    <% if (entry.images.length === 0) { %>
+                      <span class="table-static">Sin imagenes</span>
+                    <% } else { %>
+                      <button
+                        type="button"
+                        class="ghost-button image-modal-trigger"
+                        data-images="<%= entry.images.join('|') %>"
+                      >
+                        Ver (<%= entry.images.length %>)
+                      </button>
+                    <% } %>
+                  </td>
+                  <td><%= entry.created_at %></td>
+                <% } %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<div class="image-modal" id="imageModal" hidden>
+  <div class="image-modal-backdrop" data-close-image-modal></div>
+  <div class="image-modal-dialog">
+    <button type="button" class="image-modal-close" data-close-image-modal>Cerrar</button>
+    <div class="image-modal-grid" id="imageModalGrid"></div>
+  </div>
+</div>
+
+<div class="image-modal" id="textModal" hidden>
+  <div class="image-modal-backdrop" data-close-text-modal></div>
+  <div class="image-modal-dialog comment-modal-dialog">
+    <button type="button" class="image-modal-close" data-close-text-modal>Cerrar</button>
+    <h2 id="textModalTitle">Detalle</h2>
+    <textarea id="textModalTextarea" rows="10" placeholder="Contenido"></textarea>
+    <div class="comment-modal-actions">
+      <button type="button" class="ghost-button" data-close-text-modal>Cancelar</button>
+      <button type="button" id="textModalSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<%- include("partials/foot") %>

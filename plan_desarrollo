@@ -1,0 +1,34 @@
+# Plan de desarrollo
+
+## Estado actual
+- [x] Definicion inicial del alcance y arquitectura.
+- [x] Eleccion de stack: Node.js + Express + SQLite.
+- [x] Base de proyecto implementada.
+- [x] Backend con autenticacion, ingresos y trabajadores.
+- [x] Frontend web funcional.
+- [x] Docker y validacion final.
+
+## Objetivo v1
+- Login local con perfiles `admin` y `user`.
+- Formulario de ingresos equivalente al proceso actual.
+- Mantenedor de trabajadores para poblar `Ingresado por`.
+- Carga multiple de imagenes.
+- Icono de notificaciones con badge rojo.
+- Despliegue en Docker con persistencia local.
+
+## Notas de avance
+- Workspace inicial vacio; se construira la aplicacion desde cero.
+- Se usara `sql.js` para persistir un archivo SQLite y simplificar portabilidad entre Windows y Raspberry.
+- Se implemento la primera version con login, formulario de ingresos, mantenedor de trabajadores, historial, badge de notificaciones y vistas admin.
+- Dependencias instaladas, arranque local validado y build Docker verificado.
+- Contenedor levantado con `docker compose up -d` y servicio expuesto en el puerto 3000.
+- Tema oscuro configurado como predeterminado con selector persistente entre sesiones.
+- Credenciales admin fijadas en `admin / admin` y resincronizadas al reiniciar la aplicacion.
+- Se cargaron 27 trabajadores iniciales en el mantenedor, ignorando RUT y evitando duplicados por nombre normalizado.
+- Vista de trabajadores simplificada: sin campo codigo, cards mas compactas y buscador por nombre en la cabecera del listado.
+- UI ajustada para uso responsivo en tablet y celular, incluyendo header, formularios, tarjetas, botones y grillas de imagenes.
+- Branding actualizado con logo Antalis Abitek en header/login y paleta global alineada al morado/fucsia corporativo.
+- Historial transformado a tabla con filtro global; admin puede editar todos los campos del ingreso y se agregaron columnas nuevas: estado, codigo SAP, comentario, tarea final, cotizacion y OC.
+- Sistema de notificaciones evolucionado a etapas por ingreso: registro creado, accion pendiente (4 dias), plazo limite (+3 dias) y caso urgente/no actualizado (+1 dia).
+- Base de impresion preparada para Zebra GK420t via ZPL sobre TCP/IP: cola `print_jobs`, envio server-side, impresion automatica configurable y accion `Reimprimir` en historial admin.
+- Nuevo perfil `operator` incorporado: solo puede editar estado, codigo SAP, comentario, tarea final, cotizacion y OC; `Trabajadores` queda visible solo para `admin`.

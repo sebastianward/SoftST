@@ -1,0 +1,64 @@
+<%- include("partials/head", { title: "Trabajadores" }) %>
+<%- include("partials/header") %>
+
+<main class="page-shell split-layout">
+  <section class="panel">
+    <div class="panel-title">
+      <h1>Mantenedor de trabajadores</h1>
+    </div>
+
+    <form class="stack-form" action="/workers" method="post">
+      <label>
+        Nombre *
+        <input type="text" name="name" required>
+      </label>
+
+      <button type="submit">Agregar trabajador</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title panel-title-workers">
+      <h2>Listado</h2>
+      <div class="workers-toolbar">
+        <label class="workers-search">
+          <input type="search" id="workerSearch" placeholder="Buscar trabajador">
+        </label>
+        <span><%= workers.length %> registros</span>
+      </div>
+    </div>
+
+    <% if (workers.length === 0) { %>
+      <p class="empty-state">No hay trabajadores creados.</p>
+    <% } else { %>
+      <div class="worker-list" id="workerList">
+        <% workers.forEach((worker) => { %>
+          <article
+            class="worker-card worker-card-compact <%= Number(worker.active) === 1 ? "" : "is-inactive" %>"
+            data-worker-name="<%= worker.name.toLowerCase() %>"
+          >
+            <form action="/workers/<%= worker.id %>/update" method="post" class="worker-form">
+              <label>
+                Nombre
+                <input type="text" name="name" value="<%= worker.name %>" required>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" name="active" <%= Number(worker.active) === 1 ? "checked" : "" %>>
+                Activo
+              </label>
+              <button type="submit">Guardar cambios</button>
+            </form>
+
+            <form action="/workers/<%= worker.id %>/toggle" method="post">
+              <button class="ghost-button" type="submit">
+                <%= Number(worker.active) === 1 ? "Desactivar" : "Activar" %>
+              </button>
+            </form>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+</main>
+
+<%- include("partials/foot") %>

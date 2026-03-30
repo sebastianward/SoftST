@@ -1,0 +1,43 @@
+<header class="site-header">
+  <div class="brand-wrap">
+    <a class="brand brand-logo" href="/">
+      <img src="/public/img/logo-antalis-abitek.png" alt="Antalis Abitek">
+    </a>
+    <div class="brand-text">
+      <a class="brand" href="/">SoftST Ingresos</a>
+      <p class="brand-copy">Registro web para recepcion de equipos</p>
+    </div>
+  </div>
+
+  <% if (currentUser) { %>
+    <nav class="top-nav">
+      <a href="/">Inicio</a>
+      <a href="/entries">Ingresos</a>
+      <a href="/entries/new">Nuevo ingreso</a>
+      <% if (currentUser.role === "admin") { %>
+        <a href="/workers">Trabajadores</a>
+      <% } %>
+      <% if (currentUser.role === "admin") { %>
+        <a class="notification-link" href="/notifications" aria-label="Notificaciones">
+          <span class="bell">🔔</span>
+          <% if (notificationCount > 0) { %>
+            <span class="badge"><%= notificationCount %></span>
+          <% } else { %>
+            <span class="badge is-empty">0</span>
+          <% } %>
+        </a>
+      <% } %>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar tema">
+        <span data-theme-label>Modo claro</span>
+      </button>
+      <span class="user-chip"><%= currentUser.username %> · <%= currentUser.role %></span>
+      <form action="/logout" method="post">
+        <button class="ghost-button" type="submit">Salir</button>
+      </form>
+    </nav>
+  <% } %>
+</header>
+
+<% if (flash) { %>
+  <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+<% } %>
