@@ -6,105 +6,99 @@ function buildEntryZpl(entry) {
     "^XA",
     "^CI28",
     "^PW812",
-    "^LL2400",
+    "^LL560",
     "^LH0,0",
-    "^FO30,25^GB752,2,2^FS",
-    "^FO40,45^A0N,42,42^FDSoftST / Antalis Abitek^FS",
-    "^FO40,95^A0N,30,30^FDIngreso #" + sanitize(entry.id) + "^FS",
-    "^FO520,45^BY2,2,70^BCN,70,Y,N,N^FDING-" + sanitize(entry.id) + "^FS",
+    "^FO24,18^GB764,2,2^FS",
+    "^FO32,28^A0N,28,28^FDSoftST / Antalis Abitek^FS",
+    "^FO32,62^A0N,24,24^FDIngreso #" + sanitize(entry.id) + "^FS",
+    "^FO530,24^BY2,2,46^BCN,46,N,N,N^FDING-" + sanitize(entry.id) + "^FS",
+    "^FO24,92^GB764,2,2^FS",
   ];
 
-  let y = 205;
-  const left = 40;
-  const width = 720;
-
+  const leftX = 30;
+  const rightX = 410;
+  const topY = 108;
+  const rowGap = 54;
+  const wrapAt = 24;
   const fields = [
-    ["Razon social", entry.business_name],
-    ["R.U.T.", entry.rut],
-    ["Contacto", entry.contact_name],
-    ["Correo", entry.contact_email || "-"],
-    ["Telefono", entry.contact_phone || "-"],
-    ["Propiedad", entry.ownership || "-"],
-    ["Sucursal", entry.branch_office || "-"],
-    ["Equipo (marca y modelo)", entry.equipment_model],
-    ["Serie", entry.serial_number || "-"],
-    ["Ingresado por", entry.worker_name_snapshot],
-    ["Imagenes cargadas", String(entry.image_count || 0)],
-    ["Fecha de ingreso", formatDate(entry.created_at)],
+    { label: "Razon social", value: entry.business_name, x: leftX, y: topY, lines: 2 },
+    { label: "R.U.T.", value: entry.rut, x: rightX, y: topY, lines: 1 },
+    { label: "Contacto", value: entry.contact_name, x: leftX, y: topY + rowGap, lines: 1 },
+    { label: "Correo", value: entry.contact_email || "-", x: rightX, y: topY + rowGap, lines: 2 },
+    { label: "Telefono", value: entry.contact_phone || "-", x: leftX, y: topY + rowGap * 2, lines: 1 },
+    { label: "Propiedad", value: entry.ownership || "-", x: rightX, y: topY + rowGap * 2, lines: 1 },
+    { label: "Sucursal", value: entry.branch_office || "-", x: leftX, y: topY + rowGap * 3, lines: 1 },
+    { label: "Serie", value: entry.serial_number || "-", x: rightX, y: topY + rowGap * 3, lines: 1 },
+    { label: "Equipo", value: entry.equipment_model, x: leftX, y: topY + rowGap * 4, lines: 2 },
+    { label: "Ingresado por", value: entry.worker_name_snapshot, x: rightX, y: topY + rowGap * 4, lines: 2 },
+    { label: "Fecha", value: formatDate(entry.created_at), x: leftX, y: topY + rowGap * 5, lines: 1 },
+    { label: "Imagenes", value: String(entry.image_count || 0), x: rightX, y: topY + rowGap * 5, lines: 1 },
   ];
 
-  fields.forEach(([label, value]) => {
-    y = pushFieldBlock(lines, {
-      y,
-      label,
-      value,
-      x: left,
-      width,
-      labelHeight: 28,
-      valueHeight: 28,
-      lineGap: 8,
-      blockGap: 14,
-      wrapAt: 42,
+  fields.forEach((field) => {
+    pushCompactField(lines, {
+      x: field.x,
+      y: field.y,
+      label: field.label,
+      value: field.value,
+      wrapAt,
+      maxLines: field.lines,
     });
   });
 
-  y += 8;
-  lines.push(`^FO${left},${y}^GB${width},2,2^FS`);
-  y += 22;
+  lines.push("^FO24,440^GB764,2,2^FS");
 
-  y = pushSection(lines, {
-    y,
+  pushSection(lines, {
+    y: 452,
     title: "Reporte del cliente",
     value: entry.client_report || "-",
-    x: left,
-    width,
-    wrapAt: 48,
-    maxLines: 8,
+    x: leftX,
+    wrapAt: 42,
+    maxLines: 3,
   });
 
-  y = pushSection(lines, {
-    y,
+  pushSection(lines, {
+    y: 452,
     title: "Detalle y accesorios",
     value: entry.details_accessories || "-",
-    x: left,
-    width,
-    wrapAt: 48,
-    maxLines: 8,
+    x: rightX,
+    wrapAt: 22,
+    maxLines: 3,
   });
 
   lines.push("^XZ");
   return lines.join("\n");
 }
 
-function pushFieldBlock(lines, options) {
-  const wrappedLines = wrapText(options.value, options.wrapAt);
-  lines.push(
-    `^FO${options.x},${options.y}^A0N,${options.labelHeight},${options.labelHeight}^FD${sanitize(options.label)}:^FS`
-  );
-
-  let cursorY = options.y + options.labelHeight + options.lineGap;
-  wrappedLines.forEach((line) => {
-    lines.push(
-      `^FO${options.x},${cursorY}^A0N,${options.valueHeight},${options.valueHeight}^FD${sanitize(line)}^FS`
+function pushCompactField(lines, options) {
+  lines.push(`^FO${options.x},${options.y}^A0N,18,18^FD${sanitize(options.label)}:^FS`);
+  const wrapped = wrapText(options.value, options.wrapAt)
+    .slice(0, options.maxLines)
+    .map((line, index, array) =>
+      index === array.length - 1 ? withEllipsis(line, options.value, options.wrapAt, options.maxLines, index) : line
     );
-    cursorY += options.valueHeight + 4;
+  let cursorY = options.y + 20;
+  wrapped.forEach((line) => {
+    lines.push(`^FO${options.x},${cursorY}^A0N,22,22^FD${sanitize(line)}^FS`);
+    cursorY += 22;
   });
-
-  return cursorY + options.blockGap;
 }
 
 function pushSection(lines, options) {
-  lines.push(`^FO${options.x},${options.y}^A0N,30,30^FD${sanitize(options.title)}:^FS`);
-  let cursorY = options.y + 40;
+  lines.push(`^FO${options.x},${options.y}^A0N,18,18^FD${sanitize(options.title)}:^FS`);
+  let cursorY = options.y + 20;
 
-  wrapText(options.value, options.wrapAt)
+  const wrapped = wrapText(options.value, options.wrapAt)
     .slice(0, options.maxLines)
-    .forEach((line) => {
-      lines.push(`^FO${options.x},${cursorY}^A0N,26,26^FD${sanitize(line)}^FS`);
-      cursorY += 32;
-    });
+    .map((line, index, array) =>
+      index === array.length - 1 ? withEllipsis(line, options.value, options.wrapAt, options.maxLines, index) : line
+    );
 
-  return cursorY + 18;
+  wrapped
+    .forEach((line) => {
+      lines.push(`^FO${options.x},${cursorY}^A0N,20,20^FD${sanitize(line)}^FS`);
+      cursorY += 20;
+    });
 }
 
 function wrapText(value, maxChars) {
@@ -158,6 +152,15 @@ function sanitize(value) {
 
 function formatDate(value) {
   return String(value || "").replace("T", " ").replace("Z", "");
+}
+
+function withEllipsis(line, originalValue, wrapAt, maxLines, index) {
+  const totalLines = wrapText(originalValue, wrapAt);
+  const isTruncated = totalLines.length > maxLines && index === maxLines - 1;
+  if (!isTruncated) {
+    return line;
+  }
+  return line.length > 3 ? `${line.slice(0, Math.max(0, line.length - 3))}...` : `${line}...`;
 }
 
 async function sendZplToPrinter({ mode, host, port, devicePath, zpl }) {
