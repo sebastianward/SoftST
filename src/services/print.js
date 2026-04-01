@@ -11,7 +11,7 @@ function buildEntryZpl(entry) {
     "^FO24,18^GB764,2,2^FS",
     "^FO32,28^A0N,28,28^FDSoftST / Antalis Abitek^FS",
     "^FO32,62^A0N,24,24^FDIngreso #" + sanitize(entry.id) + "^FS",
-    "^FO530,24^BY2,2,46^BCN,46,N,N,N^FDING-" + sanitize(entry.id) + "^FS",
+    "^FO600,62^A0N,22,22^FD" + sanitize(formatDate(entry.created_at)) + "^FS",
     "^FO24,92^GB764,2,2^FS",
   ];
 
@@ -22,17 +22,10 @@ function buildEntryZpl(entry) {
   const wrapAt = 24;
   const fields = [
     { label: "Razon social", value: entry.business_name, x: leftX, y: topY, lines: 2 },
-    { label: "R.U.T.", value: entry.rut, x: rightX, y: topY, lines: 1 },
-    { label: "Contacto", value: entry.contact_name, x: leftX, y: topY + rowGap, lines: 1 },
-    { label: "Correo", value: entry.contact_email || "-", x: rightX, y: topY + rowGap, lines: 2 },
-    { label: "Telefono", value: entry.contact_phone || "-", x: leftX, y: topY + rowGap * 2, lines: 1 },
-    { label: "Propiedad", value: entry.ownership || "-", x: rightX, y: topY + rowGap * 2, lines: 1 },
-    { label: "Sucursal", value: entry.branch_office || "-", x: leftX, y: topY + rowGap * 3, lines: 1 },
-    { label: "Serie", value: entry.serial_number || "-", x: rightX, y: topY + rowGap * 3, lines: 1 },
-    { label: "Equipo", value: entry.equipment_model, x: leftX, y: topY + rowGap * 4, lines: 2 },
-    { label: "Ingresado por", value: entry.worker_name_snapshot, x: rightX, y: topY + rowGap * 4, lines: 2 },
-    { label: "Fecha", value: formatDate(entry.created_at), x: leftX, y: topY + rowGap * 5, lines: 1 },
-    { label: "Imagenes", value: String(entry.image_count || 0), x: rightX, y: topY + rowGap * 5, lines: 1 },
+    { label: "Contacto", value: entry.contact_name, x: rightX, y: topY, lines: 2 },
+    { label: "Equipo", value: entry.equipment_model, x: leftX, y: topY + rowGap * 2, lines: 2 },
+    { label: "Serie", value: entry.serial_number || "-", x: rightX, y: topY + rowGap * 2, lines: 2 },
+    { label: "Ingresado por", value: entry.worker_name_snapshot, x: leftX, y: topY + rowGap * 4, lines: 2 },
   ];
 
   fields.forEach((field) => {
@@ -46,24 +39,24 @@ function buildEntryZpl(entry) {
     });
   });
 
-  lines.push("^FO24,440^GB764,2,2^FS");
+  lines.push("^FO24,346^GB764,2,2^FS");
 
   pushSection(lines, {
-    y: 452,
+    y: 360,
     title: "Reporte del cliente",
     value: entry.client_report || "-",
     x: leftX,
     wrapAt: 42,
-    maxLines: 3,
+    maxLines: 5,
   });
 
   pushSection(lines, {
-    y: 452,
+    y: 360,
     title: "Detalle y accesorios",
     value: entry.details_accessories || "-",
     x: rightX,
     wrapAt: 22,
-    maxLines: 3,
+    maxLines: 5,
   });
 
   lines.push("^XZ");
