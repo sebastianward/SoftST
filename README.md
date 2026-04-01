@@ -38,6 +38,22 @@ docker compose up -d --build
 ## Impresion ZPL
 
 - Impresora objetivo: `gk420t`
-- Modo: ZPL por TCP/IP
-- Configura `PRINTER_HOST` y `PRINTER_PORT` para habilitar pruebas reales
+- Modos soportados:
+  - `tcp`: ZPL por red usando `PRINTER_HOST` y `PRINTER_PORT`
+  - `usb`: ZPL directo al device local usando `PRINTER_DEVICE`
 - Mientras `PRINT_ENABLED=false`, la aplicacion deja la cola lista pero no intenta imprimir
+- En Raspberry con impresora USB, levanta con:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
+```
+
+- Configuracion sugerida para Zebra GK420t por USB:
+
+```env
+PRINT_ENABLED=true
+PRINT_AUTO_ON_CREATE=true
+PRINTER_MODE=usb
+PRINTER_DEVICE=/dev/usb/lp0
+PRINTER_NAME=gk420t
+```

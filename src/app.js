@@ -39,7 +39,7 @@ const upload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
-    files: 6,
+    files: 15,
   },
 });
 
@@ -237,8 +237,9 @@ function backfillNotifications() {
 
 function queuePrintJob(entryId, reason) {
   const entry = db.get(
-    `SELECT id, business_name, contact_name, equipment_model, serial_number,
-            worker_name_snapshot, rut, client_report, details_accessories, created_at
+    `SELECT id, business_name, rut, contact_name, contact_email, contact_phone,
+            ownership, branch_office, equipment_model, serial_number,
+            worker_name_snapshot, client_report, details_accessories, image_paths, created_at
      FROM entries
      WHERE id = ?`,
     [Number(entryId)]
@@ -248,7 +249,10 @@ function queuePrintJob(entryId, reason) {
     return null;
   }
 
-  const zplContent = buildEntryZpl(entry);
+  const zplContent = buildEntryZpl({
+    ...entry,
+    image_count: JSON.parse(entry.image_paths || "[]").length,
+  });
   db.run(
     `INSERT INTO print_jobs (entry_id, printer_name, printer_mode, status, reason, zpl_content)
      VALUES (?, ?, ?, 'pending', ?, ?)`,
@@ -264,6 +268,12 @@ function queuePrintJob(entryId, reason) {
   return db.get("SELECT id, status FROM print_jobs ORDER BY id DESC LIMIT 1");
 }
 
+function triggerPrintWorker() {
+  processPendingPrintJobs().catch((error) => {
+    console.error("Error al procesar cola de impresion:", error);
+  });
+}
+
 async function processPendingPrintJobs() {
   if (printWorkerRunning) {
     return;
@@ -273,10 +283,20 @@ async function processPendingPrintJobs() {
 
   try {
     const enabled = String(process.env.PRINT_ENABLED || "false").toLowerCase() === "true";
+    const printerMode = String(process.env.PRINTER_MODE || "tcp").toLowerCase();
     const host = process.env.PRINTER_HOST || "";
     const port = Number(process.env.PRINTER_PORT || 9100);
+    const devicePath = process.env.PRINTER_DEVICE || "/dev/usb/lp0";
 
-    if (!enabled || !host) {
+    if (!enabled) {
+      return;
+    }
+
+    if (printerMode === "usb" && !devicePath) {
+      return;
+    }
+
+    if (printerMode !== "usb" && !host) {
       return;
     }
 
@@ -296,8 +316,10 @@ async function processPendingPrintJobs() {
         );
 
         await sendZplToPrinter({
+          mode: printerMode,
           host,
           port,
+          devicePath,
           zpl: job.zpl_content || "",
         });
 
@@ -336,11 +358,7 @@ async function bootstrap() {
     },
   ]);
   backfillNotifications();
-  setInterval(() => {
-    processPendingPrintJobs().catch((error) => {
-      console.error("Error al procesar cola de impresion:", error);
-    });
-  }, 15000);
+  setInterval(triggerPrintWorker, 15000);
 
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
@@ -480,7 +498,7 @@ async function bootstrap() {
     });
   });
 
-  app.post("/entries", requireAuth, upload.array("images", 6), (req, res) => {
+  app.post("/entries", requireAuth, upload.array("images", 15), (req, res) => {
     const workers = db.all("SELECT id, name FROM workers WHERE active = 1 ORDER BY name ASC");
     const imagePaths = (req.files || []).map((file) =>
       path.posix.join("uploads", path.basename(file.path))
@@ -578,6 +596,7 @@ async function bootstrap() {
     ensureNotificationsForEntry(newEntry);
     if (String(process.env.PRINT_AUTO_ON_CREATE || "true").toLowerCase() === "true") {
       queuePrintJob(newEntry.id, "auto_create");
+      triggerPrintWorker();
     }
 
     const currentSettings = getAppSettings();
@@ -726,6 +745,7 @@ async function bootstrap() {
       return res.redirect("/entries");
     }
 
+    triggerPrintWorker();
     setFlash(req, "success", `Reimpresion solicitada para ingreso #${entryId}.`);
     return res.redirect("/entries");
   });

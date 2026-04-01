@@ -1,26 +1,152 @@
+const fs = require("fs/promises");
 const net = require("net");
 
 function buildEntryZpl(entry) {
-  return [
+  const lines = [
     "^XA",
     "^CI28",
     "^PW812",
-    "^LL1218",
-    "^FO40,40^A0N,42,42^FDSoftST / Antalis Abitek^FS",
-    "^FO40,95^A0N,34,34^FDIngreso #" + entry.id + "^FS",
-    "^FO40,150^A0N,28,28^FDEmpresa: " + sanitize(entry.business_name) + "^FS",
-    "^FO40,195^A0N,28,28^FDContacto: " + sanitize(entry.contact_name) + "^FS",
-    "^FO40,240^A0N,28,28^FDEquipo: " + sanitize(entry.equipment_model) + "^FS",
-    "^FO40,285^A0N,28,28^FDSerie: " + sanitize(entry.serial_number || "-") + "^FS",
-    "^FO40,330^A0N,28,28^FDIngresado por: " + sanitize(entry.worker_name_snapshot) + "^FS",
-    "^FO40,385^A0N,28,28^FDRUT: " + sanitize(entry.rut) + "^FS",
-    "^FO40,440^A0N,28,28^FDFecha: " + sanitize(entry.created_at) + "^FS",
-    "^FO40,510^A0N,26,26^FDReporte cliente:^FS",
-    "^FO40,545^FB720,4,8,L,0^A0N,26,26^FD" + sanitize(entry.client_report || "-") + "^FS",
-    "^FO40,700^A0N,26,26^FDDetalle y accesorios:^FS",
-    "^FO40,735^FB720,4,8,L,0^A0N,26,26^FD" + sanitize(entry.details_accessories || "-") + "^FS",
-    "^XZ",
-  ].join("\n");
+    "^LL2400",
+    "^LH0,0",
+    "^FO30,25^GB752,2,2^FS",
+    "^FO40,45^A0N,42,42^FDSoftST / Antalis Abitek^FS",
+    "^FO40,95^A0N,30,30^FDIngreso #" + sanitize(entry.id) + "^FS",
+    "^FO520,45^BY2,2,70^BCN,70,Y,N,N^FDING-" + sanitize(entry.id) + "^FS",
+  ];
+
+  let y = 205;
+  const left = 40;
+  const width = 720;
+
+  const fields = [
+    ["Razon social", entry.business_name],
+    ["R.U.T.", entry.rut],
+    ["Contacto", entry.contact_name],
+    ["Correo", entry.contact_email || "-"],
+    ["Telefono", entry.contact_phone || "-"],
+    ["Propiedad", entry.ownership || "-"],
+    ["Sucursal", entry.branch_office || "-"],
+    ["Equipo (marca y modelo)", entry.equipment_model],
+    ["Serie", entry.serial_number || "-"],
+    ["Ingresado por", entry.worker_name_snapshot],
+    ["Imagenes cargadas", String(entry.image_count || 0)],
+    ["Fecha de ingreso", formatDate(entry.created_at)],
+  ];
+
+  fields.forEach(([label, value]) => {
+    y = pushFieldBlock(lines, {
+      y,
+      label,
+      value,
+      x: left,
+      width,
+      labelHeight: 28,
+      valueHeight: 28,
+      lineGap: 8,
+      blockGap: 14,
+      wrapAt: 42,
+    });
+  });
+
+  y += 8;
+  lines.push(`^FO${left},${y}^GB${width},2,2^FS`);
+  y += 22;
+
+  y = pushSection(lines, {
+    y,
+    title: "Reporte del cliente",
+    value: entry.client_report || "-",
+    x: left,
+    width,
+    wrapAt: 48,
+    maxLines: 8,
+  });
+
+  y = pushSection(lines, {
+    y,
+    title: "Detalle y accesorios",
+    value: entry.details_accessories || "-",
+    x: left,
+    width,
+    wrapAt: 48,
+    maxLines: 8,
+  });
+
+  lines.push("^XZ");
+  return lines.join("\n");
+}
+
+function pushFieldBlock(lines, options) {
+  const wrappedLines = wrapText(options.value, options.wrapAt);
+  lines.push(
+    `^FO${options.x},${options.y}^A0N,${options.labelHeight},${options.labelHeight}^FD${sanitize(options.label)}:^FS`
+  );
+
+  let cursorY = options.y + options.labelHeight + options.lineGap;
+  wrappedLines.forEach((line) => {
+    lines.push(
+      `^FO${options.x},${cursorY}^A0N,${options.valueHeight},${options.valueHeight}^FD${sanitize(line)}^FS`
+    );
+    cursorY += options.valueHeight + 4;
+  });
+
+  return cursorY + options.blockGap;
+}
+
+function pushSection(lines, options) {
+  lines.push(`^FO${options.x},${options.y}^A0N,30,30^FD${sanitize(options.title)}:^FS`);
+  let cursorY = options.y + 40;
+
+  wrapText(options.value, options.wrapAt)
+    .slice(0, options.maxLines)
+    .forEach((line) => {
+      lines.push(`^FO${options.x},${cursorY}^A0N,26,26^FD${sanitize(line)}^FS`);
+      cursorY += 32;
+    });
+
+  return cursorY + 18;
+}
+
+function wrapText(value, maxChars) {
+  const normalized = sanitize(value || "-");
+  const paragraphs = normalized.split(/\s+/).filter(Boolean);
+
+  if (paragraphs.length === 0) {
+    return ["-"];
+  }
+
+  const wrapped = [];
+  let current = "";
+
+  paragraphs.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxChars) {
+      current = candidate;
+      return;
+    }
+
+    if (current) {
+      wrapped.push(current);
+    }
+
+    if (word.length <= maxChars) {
+      current = word;
+      return;
+    }
+
+    let index = 0;
+    while (index < word.length) {
+      wrapped.push(word.slice(index, index + maxChars));
+      index += maxChars;
+    }
+    current = "";
+  });
+
+  if (current) {
+    wrapped.push(current);
+  }
+
+  return wrapped;
 }
 
 function sanitize(value) {
@@ -30,7 +156,17 @@ function sanitize(value) {
     .trim();
 }
 
-function sendZplToPrinter({ host, port, zpl }) {
+function formatDate(value) {
+  return String(value || "").replace("T", " ").replace("Z", "");
+}
+
+async function sendZplToPrinter({ mode, host, port, devicePath, zpl }) {
+  if ((mode || "tcp") === "usb") {
+    const target = devicePath || "/dev/usb/lp0";
+    await fs.writeFile(target, zpl, { encoding: "utf8" });
+    return true;
+  }
+
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();
     let finished = false;

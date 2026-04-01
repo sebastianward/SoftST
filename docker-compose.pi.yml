@@ -1,0 +1,4 @@
+services:
+  app:
+    devices:
+      - "${PRINTER_DEVICE:-/dev/usb/lp0}:${PRINTER_DEVICE:-/dev/usb/lp0}"
