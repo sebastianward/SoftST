@@ -9,6 +9,7 @@ const dotenv = require("dotenv");
 const DatabaseService = require("./services/db");
 const { requireAuth, requireAdmin, requireAdminOrOperator } = require("./middleware/auth");
 const { buildEntryZpl, sendZplToPrinter } = require("./services/print");
+const { sendCreatedEntryEmail } = require("./services/mail");
 
 dotenv.config();
 
@@ -53,28 +54,35 @@ const notificationDefinitions = [
   {
     type: "created",
     title: "Registro creado",
-    dayOffset: 0,
     message: (entry) => `Se creo el ingreso #${entry.id} para ${entry.business_name}.`,
   },
   {
     type: "pending_action",
     title: "Accion pendiente",
-    dayOffset: 4,
     message: (entry) => `El ingreso #${entry.id} tiene una accion pendiente por revisar, por ejemplo una cotizacion.`,
   },
   {
     type: "deadline",
     title: "Plazo limite",
-    dayOffset: 7,
     message: (entry) => `El ingreso #${entry.id} alcanzo el plazo limite sin cierre registrado.`,
   },
   {
     type: "urgent_not_updated",
     title: "Caso urgente, no actualizado",
-    dayOffset: 8,
     message: (entry) => `El ingreso #${entry.id} sigue sin actualizacion despues del plazo limite.`,
   },
 ];
+
+const appSettingsDefaults = {
+  pending_action_days: "4",
+  deadline_days_after_pending: "3",
+  urgent_days_after_deadline: "1",
+  diagnostic_min_days: "5",
+  diagnostic_max_days: "7",
+  mail_info_text:
+    "El plazo de diagnostico es de 5 a 7 dias habiles.\nEn caso de que el presupuesto no sea aprobado o caduque por vencimiento, el cliente acepta el cobro de UF 2 por diagnostico.\nLuego de 60 dias de permanencia del equipo por falta de autorizacion o retiro, Antalis Abitek podra gestionar su disposicion informando previamente por correo.",
+  mail_banner_path: "",
+};
 
 function parseCookies(req) {
   const cookieHeader = req.headers.cookie || "";
@@ -151,6 +159,10 @@ function normalizeEntry(row) {
   };
 }
 
+function getEntryStatusLabel(value) {
+  return entryStatuses.find((status) => status.value === value)?.label || value;
+}
+
 function parseSqliteDate(value) {
   return new Date(String(value).replace(" ", "T") + "Z");
 }
@@ -159,12 +171,30 @@ function toSqliteDate(value) {
   return value.toISOString().slice(0, 19).replace("T", " ");
 }
 
-function buildNotificationSchedule(entry) {
+function toPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getAppSettings() {
+  return db.getAppSettings(appSettingsDefaults);
+}
+
+function buildNotificationSchedule(entry, settings = getAppSettings()) {
   const createdAt = parseSqliteDate(entry.created_at);
+  const pendingActionDays = toPositiveInteger(settings.pending_action_days, 4);
+  const deadlineDaysAfterPending = toPositiveInteger(settings.deadline_days_after_pending, 3);
+  const urgentDaysAfterDeadline = toPositiveInteger(settings.urgent_days_after_deadline, 1);
+  const dayOffsets = {
+    created: 0,
+    pending_action: pendingActionDays,
+    deadline: pendingActionDays + deadlineDaysAfterPending,
+    urgent_not_updated: pendingActionDays + deadlineDaysAfterPending + urgentDaysAfterDeadline,
+  };
 
   return notificationDefinitions.map((definition) => {
     const dueAt = new Date(createdAt);
-    dueAt.setUTCDate(dueAt.getUTCDate() + definition.dayOffset);
+    dueAt.setUTCDate(dueAt.getUTCDate() + (dayOffsets[definition.type] || 0));
 
     return {
       entryId: Number(entry.id),
@@ -536,11 +566,37 @@ async function bootstrap() {
         req.session.user.id,
       ]
     );
-    const newEntry = db.get("SELECT id, business_name, created_at FROM entries ORDER BY id DESC LIMIT 1");
+    const newEntry = db.get(
+      `SELECT id, business_name, rut, contact_name, contact_email, contact_phone, ownership,
+              branch_office, equipment_model, serial_number, client_report, details_accessories,
+              entry_status, sap_code, comment, final_task, quotation, purchase_order,
+              worker_name_snapshot, image_paths, created_at
+       FROM entries
+       ORDER BY id DESC
+       LIMIT 1`
+    );
     ensureNotificationsForEntry(newEntry);
     if (String(process.env.PRINT_AUTO_ON_CREATE || "true").toLowerCase() === "true") {
       queuePrintJob(newEntry.id, "auto_create");
     }
+
+    const currentSettings = getAppSettings();
+
+    sendCreatedEntryEmail({
+      ...newEntry,
+      entry_status_label: getEntryStatusLabel(newEntry.entry_status),
+      image_count: JSON.parse(newEntry.image_paths || "[]").length,
+      attachments: JSON.parse(newEntry.image_paths || "[]").map((imagePath) =>
+        path.resolve(rootDir, imagePath)
+      ),
+      ...currentSettings,
+      banner_attachment: currentSettings.mail_banner_path
+        ? path.resolve(rootDir, currentSettings.mail_banner_path)
+        : "",
+      banner_cid: "softst-mail-banner",
+    }).catch((error) => {
+      console.error(`Error al enviar correo del ingreso #${newEntry.id}:`, error.message || error);
+    });
 
     setFlash(req, "success", "Ingreso registrado correctamente.");
     return res.redirect("/entries");
@@ -729,6 +785,48 @@ async function bootstrap() {
     ]);
     setFlash(req, "success", "Estado de trabajador actualizado.");
     return res.redirect("/workers");
+  });
+
+  app.get("/settings", requireAuth, requireAdmin, (req, res) => {
+    res.render("settings", {
+      settings: getAppSettings(),
+    });
+  });
+
+  app.post("/settings", requireAuth, requireAdmin, upload.single("mailBanner"), (req, res) => {
+    const currentSettings = getAppSettings();
+    const nextSettings = {
+      pending_action_days: String(toPositiveInteger(req.body.pendingActionDays, 4)),
+      deadline_days_after_pending: String(toPositiveInteger(req.body.deadlineDaysAfterPending, 3)),
+      urgent_days_after_deadline: String(toPositiveInteger(req.body.urgentDaysAfterDeadline, 1)),
+      diagnostic_min_days: String(toPositiveInteger(req.body.diagnosticMinDays, 5)),
+      diagnostic_max_days: String(toPositiveInteger(req.body.diagnosticMaxDays, 7)),
+      mail_info_text: req.body.mailInfoText?.trim() || "",
+      mail_banner_path: currentSettings.mail_banner_path || "",
+    };
+
+    if (req.body.removeMailBanner === "on" && currentSettings.mail_banner_path) {
+      const previousBannerPath = path.resolve(rootDir, currentSettings.mail_banner_path);
+      if (fs.existsSync(previousBannerPath)) {
+        fs.unlinkSync(previousBannerPath);
+      }
+      nextSettings.mail_banner_path = "";
+    }
+
+    if (req.file) {
+      if (currentSettings.mail_banner_path) {
+        const previousBannerPath = path.resolve(rootDir, currentSettings.mail_banner_path);
+        if (fs.existsSync(previousBannerPath)) {
+          fs.unlinkSync(previousBannerPath);
+        }
+      }
+
+      nextSettings.mail_banner_path = path.posix.join("uploads", path.basename(req.file.path));
+    }
+
+    db.setAppSettings(nextSettings);
+    setFlash(req, "success", "Configuracion actualizada. Los nuevos plazos aplicaran a ingresos creados desde ahora.");
+    return res.redirect("/settings");
   });
 
   app.get("/notifications", requireAuth, requireAdmin, (req, res) => {

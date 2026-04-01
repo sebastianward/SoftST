@@ -1,0 +1,72 @@
+<%- include("partials/head", { title: "Configuracion" }) %>
+<%- include("partials/header") %>
+
+<main class="page-shell">
+  <section class="panel settings-panel">
+    <div class="panel-title">
+      <div>
+        <h1>Configuracion</h1>
+        <span>Ajusta banner, texto informativo y plazos para nuevos ingresos y nuevos correos.</span>
+      </div>
+    </div>
+
+    <form class="settings-form" action="/settings" method="post" enctype="multipart/form-data">
+      <div class="settings-grid">
+        <label>
+          Dias hasta accion pendiente
+          <input type="number" min="1" name="pendingActionDays" value="<%= settings.pending_action_days %>" required>
+        </label>
+
+        <label>
+          Dias desde accion pendiente hasta plazo limite
+          <input type="number" min="1" name="deadlineDaysAfterPending" value="<%= settings.deadline_days_after_pending %>" required>
+        </label>
+
+        <label>
+          Dias desde plazo limite hasta caso urgente
+          <input type="number" min="1" name="urgentDaysAfterDeadline" value="<%= settings.urgent_days_after_deadline %>" required>
+        </label>
+
+        <label>
+          Dias minimos de diagnostico
+          <input type="number" min="1" name="diagnosticMinDays" value="<%= settings.diagnostic_min_days %>" required>
+        </label>
+
+        <label>
+          Dias maximos de diagnostico
+          <input type="number" min="1" name="diagnosticMaxDays" value="<%= settings.diagnostic_max_days %>" required>
+        </label>
+      </div>
+
+      <label class="full-span">
+        Texto informativo del correo
+        <textarea name="mailInfoText" rows="8"><%= settings.mail_info_text %></textarea>
+      </label>
+
+      <div class="settings-banner-block">
+        <label class="full-span">
+          Banner del correo
+          <input type="file" name="mailBanner" accept=".png,.jpg,.jpeg,.webp">
+        </label>
+
+        <% if (settings.mail_banner_path) { %>
+          <div class="settings-banner-preview">
+            <p>Banner actual</p>
+            <img src="/<%= settings.mail_banner_path %>" alt="Banner correo">
+          </div>
+
+          <label class="checkbox-row">
+            <input type="checkbox" name="removeMailBanner">
+            Quitar banner actual
+          </label>
+        <% } %>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit">Guardar configuracion</button>
+      </div>
+    </form>
+  </section>
+</main>
+
+<%- include("partials/foot") %>

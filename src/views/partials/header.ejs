@@ -16,6 +16,7 @@
       <a href="/entries/new">Nuevo ingreso</a>
       <% if (currentUser.role === "admin") { %>
         <a href="/workers">Trabajadores</a>
+        <a href="/settings">Configuracion</a>
       <% } %>
       <% if (currentUser.role === "admin") { %>
         <a class="notification-link" href="/notifications" aria-label="Notificaciones">

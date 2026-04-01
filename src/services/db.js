@@ -104,6 +104,12 @@ class DatabaseService {
         processed_at TEXT,
         FOREIGN KEY(entry_id) REFERENCES entries(id)
       );
+
+      CREATE TABLE IF NOT EXISTS app_settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
     `);
   }
 
@@ -219,6 +225,30 @@ class DatabaseService {
     const row = hasRow ? statement.getAsObject() : null;
     statement.free();
     return row;
+  }
+
+  getAppSettings(defaults = {}) {
+    const rows = this.all("SELECT setting_key, setting_value FROM app_settings");
+    const values = { ...defaults };
+
+    rows.forEach((row) => {
+      values[row.setting_key] = row.setting_value;
+    });
+
+    return values;
+  }
+
+  setAppSettings(settings = {}) {
+    Object.entries(settings).forEach(([key, value]) => {
+      this.run(
+        `INSERT INTO app_settings (setting_key, setting_value, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(setting_key) DO UPDATE SET
+           setting_value = excluded.setting_value,
+           updated_at = CURRENT_TIMESTAMP`,
+        [key, String(value ?? "")]
+      );
+    });
   }
 }
 

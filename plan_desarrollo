@@ -32,3 +32,6 @@
 - Sistema de notificaciones evolucionado a etapas por ingreso: registro creado, accion pendiente (4 dias), plazo limite (+3 dias) y caso urgente/no actualizado (+1 dia).
 - Base de impresion preparada para Zebra GK420t via ZPL sobre TCP/IP: cola `print_jobs`, envio server-side, impresion automatica configurable y accion `Reimprimir` en historial admin.
 - Nuevo perfil `operator` incorporado: solo puede editar estado, codigo SAP, comentario, tarea final, cotizacion y OC; `Trabajadores` queda visible solo para `admin`.
+- Migracion de prueba realizada a Raspberry (`192.168.176.66`) con Docker y Docker Compose instalados, proyecto desplegado en `/home/admin/softST` y servicio validado en `http://192.168.176.66:3000/login`.
+- Correo de prueba para `Registro creado` integrado con Gmail API; envia un resumen completo del formulario a los destinatarios internos fijos, al destinatario de prueba y al correo del cliente capturado en el formulario.
+- Admin incorpora pestaña `Configuracion` para definir banner del correo, texto informativo y plazos de notificacion; los nuevos valores aplican solo a ingresos creados desde el cambio en adelante.
