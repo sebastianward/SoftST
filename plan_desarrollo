@@ -1,38 +1,50 @@
 # Plan de desarrollo
 
-## Estado actual
-- [x] Definicion inicial del alcance y arquitectura.
-- [x] Eleccion de stack: Node.js + Express + SQLite.
-- [x] Base de proyecto implementada.
-- [x] Backend con autenticacion, ingresos y trabajadores.
-- [x] Frontend web funcional.
-- [x] Docker y validacion final.
+## Prioridad actual
+- [x] Redefinir alcance a operacion multi-area.
+- [ ] Migrar todos los trabajadores actuales al area `servicio_tecnico`.
+- [ ] Incorporar enrolamiento individual y masivo por correo institucional.
+- [ ] Restringir vistas y datos por area para cuentas no admin.
+- [ ] Permitir a `admin` alternar entre `servicio_tecnico` y `grafica` sin mezclar datos.
 
-## Objetivo v1
-- Login local con perfiles `admin` y `user`.
-- Formulario de ingresos equivalente al proceso actual.
-- Mantenedor de trabajadores para poblar `Ingresado por`.
-- Carga multiple de imagenes.
-- Icono de notificaciones con badge rojo.
-- Despliegue en Docker con persistencia local.
+## Roadmap inmediato
+1. Modelo de datos
+- Agregar `area` a `workers`, `users` y `entries`.
+- Agregar `email` institucional y vinculo cuenta-trabajador.
+- Backfill inicial: todo lo existente pasa a `servicio_tecnico`, excepto `admin` que queda sin area fija.
 
-## Notas de avance
-- Workspace inicial vacio; se construira la aplicacion desde cero.
-- Se usara `sql.js` para persistir un archivo SQLite y simplificar portabilidad entre Windows y Raspberry.
-- Se implemento la primera version con login, formulario de ingresos, mantenedor de trabajadores, historial, badge de notificaciones y vistas admin.
-- Dependencias instaladas, arranque local validado y build Docker verificado.
-- Contenedor levantado con `docker compose up -d` y servicio expuesto en el puerto 3000.
-- Tema oscuro configurado como predeterminado con selector persistente entre sesiones.
-- Credenciales admin fijadas en `admin / admin` y resincronizadas al reiniciar la aplicacion.
-- Se cargaron 27 trabajadores iniciales en el mantenedor, ignorando RUT y evitando duplicados por nombre normalizado.
-- Vista de trabajadores simplificada: sin campo codigo, cards mas compactas y buscador por nombre en la cabecera del listado.
-- UI ajustada para uso responsivo en tablet y celular, incluyendo header, formularios, tarjetas, botones y grillas de imagenes.
-- Branding actualizado con logo Antalis Abitek en header/login y paleta global alineada al morado/fucsia corporativo.
-- Historial transformado a tabla con filtro global; admin puede editar todos los campos del ingreso y se agregaron columnas nuevas: estado, codigo SAP, comentario, tarea final, cotizacion y OC.
-- Sistema de notificaciones evolucionado a etapas por ingreso: registro creado, accion pendiente (4 dias), plazo limite (+3 dias) y caso urgente/no actualizado (+1 dia).
-- Base de impresion preparada para Zebra GK420t via ZPL sobre TCP/IP: cola `print_jobs`, envio server-side, impresion automatica configurable y accion `Reimprimir` en historial admin.
-- Nuevo perfil `operator` incorporado: solo puede editar estado, codigo SAP, comentario, tarea final, cotizacion y OC; `Trabajadores` queda visible solo para `admin`.
-- Migracion de prueba realizada a Raspberry (`192.168.176.66`) con Docker y Docker Compose instalados, proyecto desplegado en `/home/admin/softST` y servicio validado en `http://192.168.176.66:3000/login`.
-- Correo de prueba para `Registro creado` integrado con Gmail API; envia un resumen completo del formulario a los destinatarios internos fijos y al correo del cliente capturado en el formulario.
-- Admin incorpora pestaña `Configuracion` para definir banner del correo, texto informativo y plazos de notificacion; los nuevos valores aplican solo a ingresos creados desde el cambio en adelante.
-- Impresion ZPL ampliada para cubrir todos los campos del formulario, con salida configurable por TCP o USB directo en Raspberry y despacho inmediato de la cola al crear o reimprimir.
+2. Acceso y contexto
+- Login por correo institucional como credencial principal.
+- Mantener compatibilidad transitoria con usuario local legado.
+- Definir `area efectiva` por sesion:
+- `admin`: selecciona vista activa.
+- `user` y `operator`: quedan amarrados a su area.
+
+3. Enrolamiento
+- Enrolamiento individual desde admin usando correo institucional.
+- Enrolamiento masivo pegando correos separados por coma.
+- Derivar nombre del trabajador desde `nombre.apellido@...`.
+- Crear o sincronizar en una sola operacion:
+- trabajador
+- cuenta de usuario
+- area
+- perfil
+- clave inicial `Antalis2025`
+
+4. Segmentacion funcional
+- `Trabajadores`: listado y mantenimiento filtrado por area.
+- `Nuevo ingreso`: solo trabajadores del area activa.
+- `Historial`: solo ingresos del area activa o asignada.
+- `Notificaciones`: visibles segun area activa del admin.
+- Dashboard y navegacion con contexto de area visible.
+
+## Estado de implementacion en curso
+- Se inicio la migracion de esquema para soportar `area`, `email` y vinculacion cuenta-trabajador.
+- Se comenzo la adaptacion de login y sesion para trabajar con area efectiva.
+- Se inicio el reemplazo del mantenedor de trabajadores por enrolamiento individual y masivo.
+
+## Siguiente bloque despues de esta prioridad
+- Cambio de contrasena por usuario.
+- Recuperacion de contrasena.
+- Ajustes finos de UX del selector de area y enrolamiento.
+- Revisar impactos de correo e impresion si en el futuro requieren diferencias por area.

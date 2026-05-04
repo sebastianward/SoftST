@@ -2,46 +2,97 @@
 <%- include("partials/header") %>
 
 <main class="page-shell split-layout">
-  <section class="panel">
+  <section class="panel workers-admin-panel">
     <div class="panel-title">
-      <h1>Mantenedor de trabajadores</h1>
+      <h1>Enrolamiento | <%= currentAreaLabel %></h1>
     </div>
 
-    <form class="stack-form" action="/workers" method="post">
-      <label>
-        Nombre *
-        <input type="text" name="name" required>
-      </label>
+    <div class="workers-enroll-grid">
+      <form class="stack-form" action="/workers/enroll" method="post">
+        <h2>Enrolamiento individual</h2>
+        <label>
+          Correo institucional *
+          <input type="email" name="email" placeholder="nombre.apellido@empresa.com" required>
+        </label>
 
-      <button type="submit">Agregar trabajador</button>
-    </form>
+        <label>
+          Area
+          <select name="area">
+            <% areaOptions.forEach((areaOption) => { %>
+              <option value="<%= areaOption.value %>" <%= currentArea === areaOption.value ? "selected" : "" %>><%= areaOption.label %></option>
+            <% }) %>
+          </select>
+        </label>
+
+        <button type="submit">Enrolar cuenta</button>
+      </form>
+
+      <form class="stack-form" action="/workers/enroll-bulk" method="post">
+        <h2>Enrolamiento masivo</h2>
+        <label>
+          Correos institucionales *
+          <textarea name="emails" rows="8" placeholder="nombre.apellido@empresa.com, nombre2.apellido2@empresa.com" required></textarea>
+        </label>
+
+        <label class="checkbox-group">
+          <span>Area de destino</span>
+          <div class="area-checkboxes">
+            <% areaOptions.forEach((areaOption) => { %>
+              <label class="checkbox-row">
+                <input type="radio" name="area" value="<%= areaOption.value %>" <%= currentArea === areaOption.value ? "checked" : "" %>>
+                <span><%= areaOption.label %></span>
+              </label>
+            <% }) %>
+          </div>
+        </label>
+
+        <p class="inline-hint">El sistema crea trabajador y cuenta usando el nombre derivado del correo. La clave inicial es <strong><%= defaultWorkerPassword %></strong>.</p>
+        <button type="submit">Enrolar listado</button>
+      </form>
+    </div>
   </section>
 
   <section class="panel">
     <div class="panel-title panel-title-workers">
-      <h2>Listado</h2>
+      <h2>Trabajadores de <%= currentAreaLabel %></h2>
       <div class="workers-toolbar">
         <label class="workers-search">
-          <input type="search" id="workerSearch" placeholder="Buscar trabajador">
+          <input type="search" id="workerSearch" placeholder="Buscar por nombre o correo">
         </label>
         <span><%= workers.length %> registros</span>
       </div>
     </div>
 
     <% if (workers.length === 0) { %>
-      <p class="empty-state">No hay trabajadores creados.</p>
+      <p class="empty-state">No hay trabajadores enrolados en esta area.</p>
     <% } else { %>
       <div class="worker-list" id="workerList">
         <% workers.forEach((worker) => { %>
           <article
             class="worker-card worker-card-compact <%= Number(worker.active) === 1 ? "" : "is-inactive" %>"
-            data-worker-name="<%= worker.name.toLowerCase() %>"
+            data-worker-name="<%= `${worker.name} ${worker.email || ""}`.toLowerCase() %>"
           >
-            <form action="/workers/<%= worker.id %>/update" method="post" class="worker-form">
+            <form action="/workers/<%= worker.id %>/update" method="post" class="worker-form worker-form-enrolled">
               <label>
                 Nombre
                 <input type="text" name="name" value="<%= worker.name %>" required>
               </label>
+              <label>
+                Correo
+                <input type="email" name="email" value="<%= worker.email || "" %>" required>
+              </label>
+              <label>
+                Area
+                <select name="area">
+                  <% areaOptions.forEach((areaOption) => { %>
+                    <option value="<%= areaOption.value %>" <%= worker.area === areaOption.value ? "selected" : "" %>><%= areaOption.label %></option>
+                  <% }) %>
+                </select>
+              </label>
+              <div class="worker-role-readonly">
+                <span class="worker-role-label">Perfil</span>
+                <span class="comment-indicator has-comment">user</span>
+              </div>
               <label class="checkbox-row">
                 <input type="checkbox" name="active" <%= Number(worker.active) === 1 ? "checked" : "" %>>
                 Activo

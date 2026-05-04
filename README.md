@@ -29,6 +29,13 @@ docker compose up -d --build
 - Admin: `admin / admin` por defecto, o lo definido por `ADMIN_USERNAME` y `ADMIN_PASSWORD`
 - Usuario: definidas por `USER_USERNAME` y `USER_PASSWORD`
 - Operador: definidas por `OPERATOR_USERNAME` y `OPERATOR_PASSWORD`
+- Referencia interna temporal de accesos: `CREDENCIALES_INTERNAS.md`
+
+## Enrolamiento
+
+- El enrolamiento individual crea solo cuentas `user`.
+- El enrolamiento masivo crea solo cuentas `user`.
+- Las cuentas `admin` y `operator` manuales se mantienen fuera del enrolamiento masivo.
 
 ## Persistencia
 

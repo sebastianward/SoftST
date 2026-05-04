@@ -93,7 +93,7 @@ function buildRawMimeMessage({ from, to, subject, text, html, attachments = [] }
   const mixedBoundary = `softst-mixed-${Date.now()}`;
   const alternativeBoundary = `softst-alt-${Date.now()}`;
   return [
-    `From: SoftST <${from}>`,
+    `From: Registro Ingresos Antalis Abitek <${from}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
@@ -153,7 +153,7 @@ function buildCreatedEntryEmail(entry) {
   ];
 
   const text = [
-    "[DEBUG] Correo de prueba de SoftST.",
+    "[DEBUG] Correo de prueba de Registro Ingresos Antalis Abitek.",
     "",
     `Se ha registrado un nuevo ingreso #${entry.id}.`,
     "",
@@ -166,7 +166,7 @@ function buildCreatedEntryEmail(entry) {
         DEBUG: correo de prueba
       </p>
       <h2 style="margin-bottom: 12px;">Nuevo ingreso registrado #${escapeHtml(entry.id)}</h2>
-      <p style="margin-top: 0;">Resumen del formulario ingresado en SoftST.</p>
+      <p style="margin-top: 0;">Resumen del formulario ingresado en Registro Ingresos Antalis Abitek.</p>
       <table style="border-collapse: collapse; width: 100%; max-width: 760px;">
         <tbody>
           ${rows
@@ -216,7 +216,7 @@ function buildCreatedEntryEmail(entry) {
   `.trim();
 
   return {
-    subject: `[DEBUG] SoftST: registro creado ingreso #${entry.id}`,
+    subject: `[DEBUG] Registro Ingresos Antalis Abitek: registro creado ingreso #${entry.id}`,
     text,
     html,
   };

@@ -4,7 +4,7 @@
       <img src="/public/img/logo-antalis-abitek.png" alt="Antalis Abitek">
     </a>
     <div class="brand-text">
-      <a class="brand" href="/">SoftST Ingresos</a>
+      <a class="brand" href="/">Registro Ingresos Antalis Abitek</a>
       <p class="brand-copy">Registro web para recepcion de equipos</p>
     </div>
   </div>
@@ -17,10 +17,17 @@
       <% if (currentUser.role === "admin") { %>
         <a href="/workers">Trabajadores</a>
         <a href="/settings">Configuracion</a>
+        <div class="area-switcher">
+          <% areaOptions.forEach((areaOption) => { %>
+            <a class="area-chip <%= currentArea === areaOption.value ? "is-active" : "" %>" href="/admin/switch-area/<%= areaOption.value %>">
+              <%= areaOption.label %>
+            </a>
+          <% }) %>
+        </div>
       <% } %>
       <% if (currentUser.role === "admin") { %>
         <a class="notification-link" href="/notifications" aria-label="Notificaciones">
-          <span class="bell">🔔</span>
+          <span class="bell">&#128276;</span>
           <% if (notificationCount > 0) { %>
             <span class="badge"><%= notificationCount %></span>
           <% } else { %>
@@ -31,7 +38,10 @@
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar tema">
         <span data-theme-label>Modo claro</span>
       </button>
-      <span class="user-chip"><%= currentUser.username %> · <%= currentUser.role %></span>
+      <span class="user-chip">
+        <%= currentUser.email || currentUser.username %> | <%= currentUser.role %>
+        <% if (currentUser.role !== "admin") { %> | <%= currentAreaLabel %><% } %>
+      </span>
       <form action="/logout" method="post">
         <button class="ghost-button" type="submit">Salir</button>
       </form>

@@ -9,7 +9,7 @@ function buildEntryZpl(entry) {
     "^LL560",
     "^LH0,0",
     "^FO24,18^GB764,2,2^FS",
-    "^FO32,28^A0N,28,28^FDSoftST / Antalis Abitek^FS",
+    "^FO32,28^A0N,28,28^FDRegistro Ingresos Antalis Abitek^FS",
     "^FO32,62^A0N,24,24^FDIngreso #" + sanitize(entry.id) + "^FS",
     "^FO600,62^A0N,22,22^FD" + sanitize(formatDate(entry.created_at)) + "^FS",
     "^FO24,92^GB764,2,2^FS",

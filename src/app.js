@@ -44,6 +44,12 @@ const upload = multer({
 });
 
 const authCookieName = "softst_auth";
+const defaultWorkerPassword = "Antalis2025";
+const departmentAreas = ["servicio_tecnico", "grafica"];
+const departmentAreaLabels = {
+  servicio_tecnico: "Servicio Tecnico",
+  grafica: "Grafica",
+};
 const entryStatuses = [
   { value: "diagnostico_pendiente", label: "Diagnostico pendiente" },
   { value: "no_asignado", label: "No asignado" },
@@ -83,6 +89,99 @@ const appSettingsDefaults = {
     "El plazo de diagnostico es de 5 a 7 dias habiles.\nEn caso de que el presupuesto no sea aprobado o caduque por vencimiento, el cliente acepta el cobro de UF 2 por diagnostico.\nLuego de 60 dias de permanencia del equipo por falta de autorizacion o retiro, Antalis Abitek podra gestionar su disposicion informando previamente por correo.",
   mail_banner_path: "",
 };
+
+function normalizeArea(value, fallback = "servicio_tecnico") {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
+  return departmentAreas.includes(normalized) ? normalized : fallback;
+}
+
+function getAreaLabel(area) {
+  return departmentAreaLabels[normalizeArea(area)] || departmentAreaLabels.servicio_tecnico;
+}
+
+function getUserArea(user) {
+  if (!user) {
+    return "servicio_tecnico";
+  }
+
+  if (user.role === "admin") {
+    return null;
+  }
+
+  return normalizeArea(user.area);
+}
+
+function getEffectiveArea(req) {
+  if (!req.session.user) {
+    return "servicio_tecnico";
+  }
+
+  if (req.session.user.role === "admin") {
+    return normalizeArea(req.session.viewArea || "servicio_tecnico");
+  }
+
+  return getUserArea(req.session.user);
+}
+
+function formatDisplayNameFromEmail(email) {
+  const localPart = String(email || "")
+    .trim()
+    .toLowerCase()
+    .split("@")[0];
+
+  return localPart
+    .split(".")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function parseInstitutionalEmails(rawValue) {
+  return String(rawValue || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function normalizeNamePart(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function getInstitutionalEmailDomain() {
+  return String(process.env.INSTITUTIONAL_EMAIL_DOMAIN || "antalis.com")
+    .trim()
+    .toLowerCase();
+}
+
+function buildInstitutionalEmailFromName(name, domain = getInstitutionalEmailDomain()) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .map(normalizeNamePart)
+    .filter(Boolean);
+
+  if (parts.length < 2) {
+    return "";
+  }
+
+  const firstName = parts[0];
+  const firstSurname = parts.length === 2 ? parts[1] : parts[parts.length - 2];
+
+  if (!firstName || !firstSurname || !domain) {
+    return "";
+  }
+
+  return `${firstName}.${firstSurname}@${domain}`;
+}
 
 function parseCookies(req) {
   const cookieHeader = req.headers.cookie || "";
@@ -174,6 +273,135 @@ function toSqliteDate(value) {
 function toPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function createOrSyncWorkerAccount({ email, area, role = "user", active = 1 }) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedArea = normalizeArea(area);
+  const normalizedRole = role === "user" ? "user" : "user";
+
+  if (!normalizedEmail) {
+    throw new Error("Debes indicar un correo institucional valido.");
+  }
+
+  const workerName = formatDisplayNameFromEmail(normalizedEmail);
+
+  if (!workerName) {
+    throw new Error(`No se pudo derivar el nombre desde ${normalizedEmail}.`);
+  }
+
+  let worker = db.get("SELECT * FROM workers WHERE lower(email) = lower(?)", [normalizedEmail]);
+
+  if (!worker) {
+    worker = db.get(
+      "SELECT * FROM workers WHERE lower(name) = lower(?) AND area = ? ORDER BY id ASC LIMIT 1",
+      [workerName, normalizedArea]
+    );
+  }
+
+  if (!worker) {
+    db.run(
+      `INSERT INTO workers (name, email, area, code, active, updated_at)
+       VALUES (?, ?, ?, '', ?, CURRENT_TIMESTAMP)`,
+      [workerName, normalizedEmail, normalizedArea, active]
+    );
+    worker = db.get("SELECT * FROM workers ORDER BY id DESC LIMIT 1");
+  } else {
+    db.run(
+      `UPDATE workers
+       SET name = ?, email = ?, area = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [workerName, normalizedEmail, normalizedArea, active, Number(worker.id)]
+    );
+    worker = db.get("SELECT * FROM workers WHERE id = ?", [Number(worker.id)]);
+  }
+
+  const passwordHash = bcrypt.hashSync(defaultWorkerPassword, 10);
+  let user = db.get("SELECT * FROM users WHERE lower(email) = lower(?)", [normalizedEmail]);
+
+  if (!user) {
+    user = db.get("SELECT * FROM users WHERE worker_id = ?", [Number(worker.id)]);
+  }
+
+  if (!user) {
+    db.run(
+      `INSERT INTO users (username, email, password_hash, role, area, worker_id, active)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      [normalizedEmail, normalizedEmail, passwordHash, normalizedRole, normalizedArea, Number(worker.id)]
+    );
+    user = db.get("SELECT * FROM users ORDER BY id DESC LIMIT 1");
+  } else {
+    db.run(
+      `UPDATE users
+       SET username = ?, email = ?, password_hash = ?, role = ?, area = ?, worker_id = ?, active = 1
+       WHERE id = ?`,
+      [normalizedEmail, normalizedEmail, passwordHash, normalizedRole, normalizedArea, Number(worker.id), Number(user.id)]
+    );
+    user = db.get("SELECT * FROM users WHERE id = ?", [Number(user.id)]);
+  }
+
+  db.run(
+    "UPDATE workers SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    [Number(user.id), Number(worker.id)]
+  );
+
+  return {
+    worker,
+    user,
+    generatedName: workerName,
+  };
+}
+
+function backfillWorkerEmailsAndAccounts() {
+  const workers = db.all("SELECT id, name, email, area, user_id, active FROM workers ORDER BY id ASC");
+
+  workers.forEach((worker) => {
+    const derivedEmail = worker.email || buildInstitutionalEmailFromName(worker.name);
+
+    if (!derivedEmail) {
+      return;
+    }
+
+    const normalizedArea = normalizeArea(worker.area);
+    const active = Number(worker.active) === 1 ? 1 : 0;
+
+    if (!worker.email) {
+      db.run(
+        "UPDATE workers SET email = ?, area = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [derivedEmail, normalizedArea, Number(worker.id)]
+      );
+    }
+
+    let user = worker.user_id
+      ? db.get("SELECT * FROM users WHERE id = ?", [Number(worker.user_id)])
+      : db.get("SELECT * FROM users WHERE lower(email) = lower(?)", [derivedEmail]);
+
+    const passwordHash = bcrypt.hashSync(defaultWorkerPassword, 10);
+
+    if (!user) {
+      db.run(
+        `INSERT INTO users (username, email, password_hash, role, area, worker_id, active)
+         VALUES (?, ?, ?, 'user', ?, ?, ?)`,
+        [derivedEmail, derivedEmail, passwordHash, normalizedArea, Number(worker.id), active]
+      );
+      user = db.get("SELECT * FROM users ORDER BY id DESC LIMIT 1");
+    } else {
+      const nextRole = user.role === "admin" ? "admin" : (user.role || "user");
+      const nextArea = nextRole === "admin" ? null : normalizedArea;
+
+      db.run(
+        `UPDATE users
+         SET username = ?, email = ?, password_hash = ?, role = ?, area = ?, worker_id = ?, active = ?
+         WHERE id = ?`,
+        [derivedEmail, derivedEmail, passwordHash, nextRole, nextArea, Number(worker.id), active, Number(user.id)]
+      );
+    }
+
+    db.run("UPDATE workers SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [
+      Number(user.id),
+      Number(worker.id),
+    ]);
+  });
 }
 
 function getAppSettings() {
@@ -268,6 +496,56 @@ function queuePrintJob(entryId, reason) {
   return db.get("SELECT id, status FROM print_jobs ORDER BY id DESC LIMIT 1");
 }
 
+function markEntryAsDeleted(entryId, deletedByUserId) {
+  const entry = db.get("SELECT id, deleted_at FROM entries WHERE id = ?", [Number(entryId)]);
+
+  if (!entry || entry.deleted_at) {
+    return false;
+  }
+
+  db.run(
+    "UPDATE entries SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ? WHERE id = ?",
+    [Number(deletedByUserId), Number(entryId)]
+  );
+  return true;
+}
+
+function restoreDeletedEntry(entryId) {
+  const entry = db.get("SELECT id, deleted_at FROM entries WHERE id = ?", [Number(entryId)]);
+
+  if (!entry || !entry.deleted_at) {
+    return false;
+  }
+
+  db.run("UPDATE entries SET deleted_at = NULL, deleted_by_user_id = NULL WHERE id = ?", [Number(entryId)]);
+  return true;
+}
+
+function parseVisibilityFilter(value) {
+  return String(value || "").trim() === "1";
+}
+
+function resolveEntryVisibilityFilters(query = {}) {
+  const hasExplicitFilters =
+    Object.prototype.hasOwnProperty.call(query, "showPending") ||
+    Object.prototype.hasOwnProperty.call(query, "showFinalized") ||
+    Object.prototype.hasOwnProperty.call(query, "showDeleted");
+
+  if (!hasExplicitFilters) {
+    return {
+      showPending: true,
+      showFinalized: false,
+      showDeleted: false,
+    };
+  }
+
+  return {
+    showPending: parseVisibilityFilter(query.showPending),
+    showFinalized: parseVisibilityFilter(query.showFinalized),
+    showDeleted: parseVisibilityFilter(query.showDeleted),
+  };
+}
+
 function triggerPrintWorker() {
   processPendingPrintJobs().catch((error) => {
     console.error("Error al procesar cola de impresion:", error);
@@ -345,18 +623,25 @@ async function bootstrap() {
       username: process.env.ADMIN_USERNAME || "admin",
       password: process.env.ADMIN_PASSWORD || "admin123",
       role: "admin",
+      email: (process.env.ADMIN_EMAIL || "").trim() || null,
+      area: null,
     },
     {
       username: process.env.USER_USERNAME || "user",
       password: process.env.USER_PASSWORD || "user123",
       role: "user",
+      email: (process.env.USER_EMAIL || "").trim() || null,
+      area: "servicio_tecnico",
     },
     {
       username: process.env.OPERATOR_USERNAME || "operator",
       password: process.env.OPERATOR_PASSWORD || "operator123",
       role: "operator",
+      email: (process.env.OPERATOR_EMAIL || "").trim() || null,
+      area: "servicio_tecnico",
     },
   ]);
+  backfillWorkerEmailsAndAccounts();
   backfillNotifications();
   setInterval(triggerPrintWorker, 15000);
 
@@ -393,7 +678,7 @@ async function bootstrap() {
     }
 
     const user = db.get(
-      "SELECT id, username, role, active FROM users WHERE id = ? AND username = ?",
+      "SELECT id, username, email, role, area, active FROM users WHERE id = ? AND username = ?",
       [Number(payload.id), payload.username]
     );
 
@@ -404,7 +689,9 @@ async function bootstrap() {
     req.session.user = {
       id: Number(user.id),
       username: user.username,
+      email: user.email || "",
       role: user.role,
+      area: getUserArea(user),
     };
 
     return next();
@@ -412,32 +699,50 @@ async function bootstrap() {
 
   app.use((req, res, next) => {
     const currentUser = req.session.user || null;
+    const currentArea = getEffectiveArea(req);
     const notificationCount =
       currentUser && currentUser.role === "admin"
         ? db.get(
             `SELECT COUNT(*) AS count
              FROM notifications
+             JOIN entries ON entries.id = notifications.entry_id
              WHERE read_at IS NULL
+             AND entries.area = ?
              AND datetime(due_at) <= datetime('now')`
-          ).count
+          , [currentArea]).count
         : 0;
 
     res.locals.currentUser = currentUser;
+    res.locals.currentArea = currentArea;
+    res.locals.areaOptions = departmentAreas.map((area) => ({
+      value: area,
+      label: getAreaLabel(area),
+    }));
+    res.locals.currentAreaLabel = getAreaLabel(currentArea);
     res.locals.notificationCount = Number(notificationCount || 0);
     res.locals.flash = getFlash(req);
     next();
   });
 
   app.get("/", requireAuth, (req, res) => {
+    const currentArea = getEffectiveArea(req);
     const latestEntries = db.all(
       `SELECT id, business_name, equipment_model, worker_name_snapshot, created_at, image_paths
        FROM entries
+       WHERE area = ?
        ORDER BY id DESC
-       LIMIT 5`
+       LIMIT 5`,
+      [currentArea]
     ).map(normalizeEntry);
 
-    const activeWorkers = db.get("SELECT COUNT(*) AS count FROM workers WHERE active = 1").count;
-    const totalEntries = db.get("SELECT COUNT(*) AS count FROM entries").count;
+    const activeWorkers = db.get(
+      "SELECT COUNT(*) AS count FROM workers WHERE active = 1 AND area = ?",
+      [currentArea]
+    ).count;
+    const totalEntries = db.get(
+      "SELECT COUNT(*) AS count FROM entries WHERE area = ?",
+      [currentArea]
+    ).count;
 
     res.render("dashboard", {
       latestEntries,
@@ -457,10 +762,14 @@ async function bootstrap() {
   });
 
   app.post("/login", (req, res) => {
-    const { username, password } = req.body;
+    const identity = String(req.body.identity || req.body.username || "").trim().toLowerCase();
+    const { password } = req.body;
     const user = db.get(
-      "SELECT id, username, password_hash, role, active FROM users WHERE username = ?",
-      [username]
+      `SELECT id, username, email, password_hash, role, area, active
+       FROM users
+       WHERE lower(username) = ? OR lower(email) = ?
+       LIMIT 1`,
+      [identity, identity]
     );
 
     if (!user || !user.active || !bcrypt.compareSync(password, user.password_hash)) {
@@ -471,8 +780,13 @@ async function bootstrap() {
     req.session.user = {
       id: Number(user.id),
       username: user.username,
+      email: user.email || "",
       role: user.role,
+      area: getUserArea(user),
     };
+    if (user.role === "admin" && !req.session.viewArea) {
+      req.session.viewArea = "servicio_tecnico";
+    }
 
     res.cookie(authCookieName, buildPersistentToken(req.session.user), {
       httpOnly: true,
@@ -485,13 +799,22 @@ async function bootstrap() {
     return res.redirect("/");
   });
 
+  app.get("/admin/switch-area/:area", requireAuth, requireAdmin, (req, res) => {
+    req.session.viewArea = normalizeArea(req.params.area);
+    return res.redirect(req.get("referer") || "/");
+  });
+
   app.post("/logout", requireAuth, (req, res) => {
     res.clearCookie(authCookieName, { path: "/" });
     req.session.destroy(() => res.redirect("/login"));
   });
 
   app.get("/entries/new", requireAuth, (req, res) => {
-    const workers = db.all("SELECT id, name FROM workers WHERE active = 1 ORDER BY name ASC");
+    const currentArea = getEffectiveArea(req);
+    const workers = db.all(
+      "SELECT id, name FROM workers WHERE active = 1 AND area = ? ORDER BY name ASC",
+      [currentArea]
+    );
     res.render("entry-form", {
       workers,
       formData: { workerName: "" },
@@ -499,7 +822,11 @@ async function bootstrap() {
   });
 
   app.post("/entries", requireAuth, upload.array("images", 15), (req, res) => {
-    const workers = db.all("SELECT id, name FROM workers WHERE active = 1 ORDER BY name ASC");
+    const currentArea = getEffectiveArea(req);
+    const workers = db.all(
+      "SELECT id, name FROM workers WHERE active = 1 AND area = ? ORDER BY name ASC",
+      [currentArea]
+    );
     const imagePaths = (req.files || []).map((file) =>
       path.posix.join("uploads", path.basename(file.path))
     );
@@ -538,15 +865,16 @@ async function bootstrap() {
     let worker = null;
 
     if (formData.workerId) {
-      worker = db.get("SELECT id, name FROM workers WHERE id = ? AND active = 1", [
+      worker = db.get("SELECT id, name FROM workers WHERE id = ? AND active = 1 AND area = ?", [
         Number(formData.workerId),
+        currentArea,
       ]);
     }
 
     if (!worker && formData.workerName) {
       worker = db.get(
-        "SELECT id, name FROM workers WHERE lower(name) = lower(?) AND active = 1",
-        [formData.workerName]
+        "SELECT id, name FROM workers WHERE lower(name) = lower(?) AND active = 1 AND area = ?",
+        [formData.workerName, currentArea]
       );
     }
 
@@ -562,10 +890,10 @@ async function bootstrap() {
       `INSERT INTO entries (
         business_name, rut, contact_name, contact_email, contact_phone, ownership,
         branch_office, equipment_model, serial_number, client_report,
-        details_accessories, entry_status, sap_code, comment, final_task, quotation, purchase_order,
+        details_accessories, entry_status, sap_code, comment, final_task, quotation, purchase_order, area,
         worker_id, worker_name_snapshot, image_paths,
         notification_read, created_by_user_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'no_asignado', '', '', '', '', '', ?, ?, ?, 0, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'no_asignado', '', '', '', '', '', ?, ?, ?, ?, 0, ?)`,
       [
         formData.businessName,
         formData.rut,
@@ -578,6 +906,7 @@ async function bootstrap() {
         formData.serialNumber || "",
         formData.clientReport,
         formData.detailsAccessories || "",
+        currentArea,
         Number(worker.id),
         worker.name,
         JSON.stringify(imagePaths),
@@ -622,11 +951,14 @@ async function bootstrap() {
   });
 
   app.get("/entries", requireAuth, (req, res) => {
+    const currentArea = getEffectiveArea(req);
+    const visibilityFilters = resolveEntryVisibilityFilters(req.query);
     const workers = req.session.user.role === "admin"
-      ? db.all("SELECT id, name FROM workers WHERE active = 1 ORDER BY name ASC")
+      ? db.all("SELECT id, name FROM workers WHERE active = 1 AND area = ? ORDER BY name ASC", [currentArea])
       : [];
     const entries = db.all(
       `SELECT e.*, u.username AS created_by_username,
+              d.username AS deleted_by_username,
               (
                 SELECT pj.status
                 FROM print_jobs pj
@@ -636,14 +968,45 @@ async function bootstrap() {
               ) AS latest_print_status
        FROM entries e
        JOIN users u ON u.id = e.created_by_user_id
-       ORDER BY e.id DESC`
+       LEFT JOIN users d ON d.id = e.deleted_by_user_id
+       WHERE e.area = ?
+       AND (
+         (? = 1 AND e.deleted_at IS NULL AND e.entry_status != 'finalizado')
+         OR (? = 1 AND e.deleted_at IS NULL AND e.entry_status = 'finalizado')
+         OR (? = 1 AND e.deleted_at IS NOT NULL)
+       )
+       ORDER BY e.id DESC`,
+      [
+        currentArea,
+        visibilityFilters.showPending ? 1 : 0,
+        visibilityFilters.showFinalized ? 1 : 0,
+        visibilityFilters.showDeleted ? 1 : 0,
+      ]
     ).map(normalizeEntry);
 
-    res.render("entries", { entries, workers, entryStatuses });
+    res.render("entries", {
+      entries,
+      workers,
+      entryStatuses,
+      visibilityFilters,
+    });
   });
 
   app.post("/entries/:id/update", requireAuth, requireAdminOrOperator, (req, res) => {
     const entryId = Number(req.params.id);
+    const currentArea = getEffectiveArea(req);
+    const currentEntry = db.get("SELECT id, area, deleted_at FROM entries WHERE id = ?", [entryId]);
+
+    if (!currentEntry || normalizeArea(currentEntry.area) !== currentArea) {
+      setFlash(req, "error", "Ingreso no encontrado en el area seleccionada.");
+      return res.redirect("/entries");
+    }
+
+    if (currentEntry.deleted_at) {
+      setFlash(req, "error", "No puedes editar un ingreso eliminado.");
+      return res.redirect("/entries");
+    }
+
     if (req.session.user.role === "admin") {
       const formData = {
         businessName: req.body.businessName?.trim(),
@@ -678,7 +1041,10 @@ async function bootstrap() {
         return res.redirect("/entries");
       }
 
-      const worker = db.get("SELECT id, name FROM workers WHERE id = ? AND active = 1", [formData.workerId]);
+      const worker = db.get(
+        "SELECT id, name FROM workers WHERE id = ? AND active = 1 AND area = ?",
+        [formData.workerId, currentArea]
+      );
 
       if (!worker) {
         setFlash(req, "error", "Trabajador invalido.");
@@ -690,7 +1056,7 @@ async function bootstrap() {
           business_name = ?, rut = ?, contact_name = ?, contact_email = ?, contact_phone = ?,
           ownership = ?, branch_office = ?, equipment_model = ?, serial_number = ?, client_report = ?,
           details_accessories = ?, entry_status = ?, sap_code = ?, comment = ?, final_task = ?,
-          quotation = ?, purchase_order = ?, worker_id = ?, worker_name_snapshot = ?
+          quotation = ?, purchase_order = ?, area = ?, worker_id = ?, worker_name_snapshot = ?
          WHERE id = ?`,
         [
           formData.businessName,
@@ -710,6 +1076,7 @@ async function bootstrap() {
           formData.finalTask,
           formData.quotation,
           formData.purchaseOrder,
+          currentArea,
           worker.id,
           worker.name,
           entryId,
@@ -738,6 +1105,18 @@ async function bootstrap() {
 
   app.post("/entries/:id/reprint", requireAuth, requireAdminOrOperator, (req, res) => {
     const entryId = Number(req.params.id);
+    const entry = db.get("SELECT id, area, deleted_at FROM entries WHERE id = ?", [entryId]);
+
+    if (!entry || normalizeArea(entry.area) !== getEffectiveArea(req)) {
+      setFlash(req, "error", "Ingreso no encontrado en el area seleccionada.");
+      return res.redirect("/entries");
+    }
+
+    if (entry.deleted_at) {
+      setFlash(req, "error", "No puedes reimprimir un ingreso eliminado.");
+      return res.redirect("/entries");
+    }
+
     const job = queuePrintJob(entryId, "manual_reprint");
 
     if (!job) {
@@ -750,50 +1129,171 @@ async function bootstrap() {
     return res.redirect("/entries");
   });
 
-  app.get("/workers", requireAuth, requireAdmin, (req, res) => {
-    const workers = db.all("SELECT * FROM workers ORDER BY active DESC, name ASC");
-    res.render("workers", { workers });
-  });
+  app.post("/entries/:id/delete", requireAuth, requireAdmin, (req, res) => {
+    const entryId = Number(req.params.id);
+    const entry = db.get("SELECT id, area FROM entries WHERE id = ?", [entryId]);
 
-  app.post("/workers", requireAuth, requireAdmin, (req, res) => {
-    const name = req.body.name?.trim();
-
-    if (!name) {
-      setFlash(req, "error", "El nombre del trabajador es obligatorio.");
-      const workers = db.all("SELECT * FROM workers ORDER BY active DESC, name ASC");
-      return res.status(422).render("workers", { workers });
+    if (!entry || normalizeArea(entry.area) !== getEffectiveArea(req)) {
+      setFlash(req, "error", "Ingreso no encontrado en el area seleccionada.");
+      return res.redirect("/entries");
     }
 
-    db.run("INSERT INTO workers (name, code, active, updated_at) VALUES (?, '', 1, CURRENT_TIMESTAMP)", [
-      name,
-    ]);
-    setFlash(req, "success", "Trabajador creado.");
+    const deleted = markEntryAsDeleted(entryId, req.session.user.id);
+
+    if (!deleted) {
+      setFlash(req, "error", "No se pudo eliminar el ingreso.");
+      return res.redirect("/entries");
+    }
+
+    setFlash(req, "success", `Ingreso #${entryId} eliminado.`);
+    return res.redirect("/entries?showDeleted=1");
+  });
+
+  app.post("/entries/:id/restore", requireAuth, requireAdmin, (req, res) => {
+    const entryId = Number(req.params.id);
+    const entry = db.get("SELECT id, area FROM entries WHERE id = ?", [entryId]);
+
+    if (!entry || normalizeArea(entry.area) !== getEffectiveArea(req)) {
+      setFlash(req, "error", "Ingreso no encontrado en el area seleccionada.");
+      return res.redirect("/entries");
+    }
+
+    const restored = restoreDeletedEntry(entryId);
+
+    if (!restored) {
+      setFlash(req, "error", "No se pudo restaurar el ingreso.");
+      return res.redirect("/entries");
+    }
+
+    setFlash(req, "success", `Ingreso #${entryId} restaurado.`);
+    return res.redirect("/entries?showDeleted=1");
+  });
+
+  app.get("/workers", requireAuth, requireAdmin, (req, res) => {
+    const currentArea = getEffectiveArea(req);
+    const workers = db.all(
+      `SELECT w.*, u.role AS linked_role
+       FROM workers w
+       LEFT JOIN users u ON u.id = w.user_id
+       WHERE w.area = ?
+       ORDER BY w.active DESC, w.name ASC`,
+      [currentArea]
+    );
+    res.render("workers", { workers, defaultWorkerPassword });
+  });
+
+  app.post("/workers/enroll", requireAuth, requireAdmin, (req, res) => {
+    try {
+      const email = String(req.body.email || "").trim().toLowerCase();
+      const area = normalizeArea(req.body.area || getEffectiveArea(req));
+
+      createOrSyncWorkerAccount({ email, area, role: "user" });
+      setFlash(req, "success", `Cuenta y trabajador enrolados para ${email}.`);
+      return res.redirect("/workers");
+    } catch (error) {
+      setFlash(req, "error", error.message || "No se pudo enrolar la cuenta.");
+      return res.redirect("/workers");
+    }
+  });
+
+  app.post("/workers/enroll-bulk", requireAuth, requireAdmin, (req, res) => {
+    const area = normalizeArea(req.body.area || getEffectiveArea(req));
+    const emails = parseInstitutionalEmails(req.body.emails);
+
+    if (emails.length === 0) {
+      setFlash(req, "error", "Pega al menos un correo institucional separado por comas.");
+      return res.redirect("/workers");
+    }
+
+    const created = [];
+    const failed = [];
+
+    emails.forEach((email) => {
+      try {
+        createOrSyncWorkerAccount({ email, area, role: "user" });
+        created.push(email);
+      } catch (error) {
+        failed.push(`${email}: ${error.message || "error"}`);
+      }
+    });
+
+    if (created.length > 0 && failed.length === 0) {
+      setFlash(req, "success", `Enrolamiento masivo completado: ${created.length} cuentas en ${getAreaLabel(area)}.`);
+      return res.redirect("/workers");
+    }
+
+    if (created.length > 0) {
+      setFlash(req, "success", `Se enrolaron ${created.length} cuentas. Revisa pendientes: ${failed.join(" | ")}`);
+      return res.redirect("/workers");
+    }
+
+    setFlash(req, "error", `No se pudo enrolar ninguna cuenta: ${failed.join(" | ")}`);
     return res.redirect("/workers");
   });
 
   app.post("/workers/:id/update", requireAuth, requireAdmin, (req, res) => {
-    const workerId = Number(req.params.id);
-    const name = req.body.name?.trim();
-    const active = req.body.active === "on" ? 1 : 0;
+    try {
+      const workerId = Number(req.params.id);
+      const name = req.body.name?.trim();
+      const email = String(req.body.email || "").trim().toLowerCase();
+      const area = normalizeArea(req.body.area || getEffectiveArea(req));
+      const active = req.body.active === "on" ? 1 : 0;
+      const worker = db.get("SELECT * FROM workers WHERE id = ?", [workerId]);
 
-    if (!name) {
-      setFlash(req, "error", "El nombre del trabajador es obligatorio.");
+      if (!worker || normalizeArea(worker.area) !== getEffectiveArea(req)) {
+        setFlash(req, "error", "Trabajador no encontrado en el area seleccionada.");
+        return res.redirect("/workers");
+      }
+
+      if (!name || !email) {
+        setFlash(req, "error", "Nombre y correo son obligatorios.");
+        return res.redirect("/workers");
+      }
+
+      db.run(
+        `UPDATE workers
+         SET name = ?, email = ?, area = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [name, email, area, active, workerId]
+      );
+
+      const passwordHash = bcrypt.hashSync(defaultWorkerPassword, 10);
+      const existingUser = db.get("SELECT id FROM users WHERE worker_id = ? OR lower(email) = lower(?)", [
+        workerId,
+        email,
+      ]);
+
+      if (existingUser) {
+        db.run(
+          `UPDATE users
+           SET username = ?, email = ?, password_hash = ?, role = ?, area = ?, worker_id = ?, active = ?
+           WHERE id = ?`,
+          [email, email, passwordHash, "user", area, workerId, active, Number(existingUser.id)]
+        );
+        db.run("UPDATE workers SET user_id = ? WHERE id = ?", [Number(existingUser.id), workerId]);
+      } else {
+        db.run(
+          `INSERT INTO users (username, email, password_hash, role, area, worker_id, active)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [email, email, passwordHash, "user", area, workerId, active]
+        );
+        const newUser = db.get("SELECT id FROM users ORDER BY id DESC LIMIT 1");
+        db.run("UPDATE workers SET user_id = ? WHERE id = ?", [Number(newUser.id), workerId]);
+      }
+
+      setFlash(req, "success", "Trabajador actualizado.");
+      return res.redirect("/workers");
+    } catch (error) {
+      setFlash(req, "error", error.message || "No se pudo actualizar el trabajador.");
       return res.redirect("/workers");
     }
-
-    db.run(
-      "UPDATE workers SET name = ?, active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [name, active, workerId]
-    );
-    setFlash(req, "success", "Trabajador actualizado.");
-    return res.redirect("/workers");
   });
 
   app.post("/workers/:id/toggle", requireAuth, requireAdmin, (req, res) => {
     const workerId = Number(req.params.id);
-    const worker = db.get("SELECT active FROM workers WHERE id = ?", [workerId]);
+    const worker = db.get("SELECT active, area, user_id FROM workers WHERE id = ?", [workerId]);
 
-    if (!worker) {
+    if (!worker || normalizeArea(worker.area) !== getEffectiveArea(req)) {
       setFlash(req, "error", "Trabajador no encontrado.");
       return res.redirect("/workers");
     }
@@ -803,6 +1303,9 @@ async function bootstrap() {
       nextValue,
       workerId,
     ]);
+    if (worker.user_id) {
+      db.run("UPDATE users SET active = ? WHERE id = ?", [nextValue, Number(worker.user_id)]);
+    }
     setFlash(req, "success", "Estado de trabajador actualizado.");
     return res.redirect("/workers");
   });
@@ -850,6 +1353,7 @@ async function bootstrap() {
   });
 
   app.get("/notifications", requireAuth, requireAdmin, (req, res) => {
+    const currentArea = getEffectiveArea(req);
     const notifications = db.all(
       `SELECT
          n.id,
@@ -864,8 +1368,11 @@ async function bootstrap() {
          e.created_at
        FROM notifications n
        JOIN entries e ON e.id = n.entry_id
-       WHERE datetime(n.due_at) <= datetime('now')
+       WHERE e.area = ?
+       AND datetime(n.due_at) <= datetime('now')
        ORDER BY n.read_at IS NOT NULL ASC, datetime(n.due_at) DESC, n.id DESC`
+      ,
+      [currentArea]
     );
 
     res.render("notifications", { notifications });
@@ -882,7 +1389,7 @@ async function bootstrap() {
   });
 
   app.listen(port, () => {
-    console.log(`SoftST disponible en http://localhost:${port}`);
+    console.log(`Registro Ingresos Antalis Abitek disponible en http://localhost:${port}`);
   });
 }
 

@@ -76,6 +76,15 @@ button:hover,
   background: var(--accent-dark);
 }
 
+.danger-button {
+  background: #b51d5a;
+  color: white;
+}
+
+.danger-button:hover {
+  background: #8f1546;
+}
+
 .button-link-compact {
   padding: 0.6rem 1rem;
   line-height: 1.1;
@@ -156,6 +165,26 @@ button:hover,
   font-weight: 600;
   line-height: 1.2;
   color: var(--accent-dark);
+}
+
+.area-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.area-chip {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink) !important;
+}
+
+.area-chip.is-active {
+  background: var(--soft-accent);
+  border-color: var(--accent);
 }
 
 .notification-link {
@@ -467,6 +496,39 @@ table {
   white-space: nowrap;
 }
 
+.status-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.state-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.state-tag-finalized {
+  background: rgba(45, 160, 122, 0.16);
+  color: #7df0c4;
+}
+
+.state-tag-deleted {
+  background: rgba(181, 29, 90, 0.18);
+  color: #ff8fbc;
+}
+
+.is-logically-deleted {
+  opacity: 0.84;
+}
+
 .table-actions {
   display: grid;
   gap: 0.45rem;
@@ -718,6 +780,20 @@ dd {
   gap: 0.75rem;
 }
 
+.worker-form-enrolled {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+}
+
+.worker-role-readonly {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+.worker-role-label {
+  font-weight: 700;
+}
+
 .worker-card-compact .worker-form label:first-child {
   min-width: 0;
 }
@@ -742,6 +818,13 @@ dd {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+}
+
+.entries-visibility-form {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .panel-title-workers {
@@ -839,6 +922,31 @@ dd {
   border: 1px solid var(--line);
   background: var(--input-bg);
   padding: 0.75rem;
+}
+
+.workers-enroll-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.workers-admin-panel h2 {
+  margin: 0;
+}
+
+.checkbox-group {
+  gap: 0.6rem;
+}
+
+.area-checkboxes {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.inline-hint {
+  margin: 0;
+  color: var(--muted);
 }
 
 @media (max-width: 1024px) {
@@ -995,6 +1103,15 @@ dd {
     grid-template-columns: 1fr;
   }
 
+  .entries-visibility-form {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .worker-form-enrolled {
+    grid-template-columns: 1fr;
+  }
+
   .panel-title-workers {
     gap: 0.75rem;
   }
@@ -1053,6 +1170,16 @@ dd {
     width: 100%;
     justify-content: center;
     text-align: center;
+  }
+
+  .area-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .area-chip {
+    justify-content: center;
   }
 
   .notification-link {

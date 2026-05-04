@@ -33,19 +33,27 @@ class DatabaseService {
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
+        email TEXT,
         password_hash TEXT NOT NULL,
         role TEXT NOT NULL CHECK(role IN ('admin', 'operator', 'user')),
+        area TEXT,
+        worker_id INTEGER,
         active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(worker_id) REFERENCES workers(id)
       );
 
       CREATE TABLE IF NOT EXISTS workers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        email TEXT,
+        area TEXT NOT NULL DEFAULT 'servicio_tecnico',
+        user_id INTEGER,
         code TEXT,
         active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id)
       );
 
       CREATE TABLE IF NOT EXISTS entries (
@@ -67,14 +75,18 @@ class DatabaseService {
         final_task TEXT,
         quotation TEXT,
         purchase_order TEXT,
+        area TEXT NOT NULL DEFAULT 'servicio_tecnico',
         worker_id INTEGER NOT NULL,
         worker_name_snapshot TEXT NOT NULL,
         image_paths TEXT NOT NULL DEFAULT '[]',
+        deleted_at TEXT,
+        deleted_by_user_id INTEGER,
         notification_read INTEGER NOT NULL DEFAULT 0,
         created_by_user_id INTEGER NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(worker_id) REFERENCES workers(id),
-        FOREIGN KEY(created_by_user_id) REFERENCES users(id)
+        FOREIGN KEY(created_by_user_id) REFERENCES users(id),
+        FOREIGN KEY(deleted_by_user_id) REFERENCES users(id)
       );
 
       CREATE TABLE IF NOT EXISTS notifications (
@@ -116,12 +128,23 @@ class DatabaseService {
   runMigrations() {
     this.migrateUsersRoleConstraint();
     this.migrateEntryStatuses();
+    this.ensureColumn("users", "email", "TEXT");
+    this.ensureColumn("users", "area", "TEXT");
+    this.ensureColumn("users", "worker_id", "INTEGER");
+    this.ensureColumn("workers", "email", "TEXT");
+    this.ensureColumn("workers", "area", "TEXT NOT NULL DEFAULT 'servicio_tecnico'");
+    this.ensureColumn("workers", "user_id", "INTEGER");
     this.ensureColumn("entries", "entry_status", "TEXT NOT NULL DEFAULT 'no_asignado'");
     this.ensureColumn("entries", "sap_code", "TEXT");
     this.ensureColumn("entries", "comment", "TEXT");
     this.ensureColumn("entries", "final_task", "TEXT");
     this.ensureColumn("entries", "quotation", "TEXT");
     this.ensureColumn("entries", "purchase_order", "TEXT");
+    this.ensureColumn("entries", "area", "TEXT NOT NULL DEFAULT 'servicio_tecnico'");
+    this.ensureColumn("entries", "deleted_at", "TEXT");
+    this.ensureColumn("entries", "deleted_by_user_id", "INTEGER");
+    this.createUniqueIndexes();
+    this.backfillLegacyAreas();
   }
 
   migrateEntryStatuses() {
@@ -174,24 +197,61 @@ class DatabaseService {
     }
   }
 
+  createUniqueIndexes() {
+    this.db.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique
+      ON users(email)
+      WHERE email IS NOT NULL AND trim(email) != '';
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_workers_email_unique
+      ON workers(email)
+      WHERE email IS NOT NULL AND trim(email) != '';
+    `);
+  }
+
+  backfillLegacyAreas() {
+    this.db.run(`
+      UPDATE workers
+      SET area = 'servicio_tecnico'
+      WHERE area IS NULL OR trim(area) = '';
+
+      UPDATE users
+      SET area = 'servicio_tecnico'
+      WHERE role != 'admin' AND (area IS NULL OR trim(area) = '');
+
+      UPDATE entries
+      SET area = 'servicio_tecnico'
+      WHERE area IS NULL OR trim(area) = '';
+    `);
+  }
+
   seedUsers(seedConfig) {
     for (const user of seedConfig) {
       const existing = this.get(
-        "SELECT id FROM users WHERE username = ?",
+        "SELECT id, email, area, worker_id FROM users WHERE username = ?",
         [user.username]
       );
 
       const passwordHash = bcrypt.hashSync(user.password, 10);
+      const nextEmail = user.email ?? existing?.email ?? null;
+      const nextArea =
+        Object.prototype.hasOwnProperty.call(user, "area")
+          ? user.area
+          : (existing?.area ?? null);
+      const nextWorkerId =
+        Object.prototype.hasOwnProperty.call(user, "workerId")
+          ? user.workerId
+          : (existing?.worker_id ?? null);
 
       if (!existing) {
         this.run(
-          "INSERT INTO users (username, password_hash, role, active) VALUES (?, ?, ?, 1)",
-          [user.username, passwordHash, user.role]
+          "INSERT INTO users (username, email, password_hash, role, area, worker_id, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
+          [user.username, nextEmail, passwordHash, user.role, nextArea, nextWorkerId]
         );
       } else {
         this.run(
-          "UPDATE users SET password_hash = ?, role = ?, active = 1 WHERE username = ?",
-          [passwordHash, user.role, user.username]
+          "UPDATE users SET email = ?, password_hash = ?, role = ?, area = ?, worker_id = ?, active = 1 WHERE username = ?",
+          [nextEmail, passwordHash, user.role, nextArea, nextWorkerId, user.username]
         );
       }
     }

@@ -21,6 +21,8 @@ let activeTextForm = null;
 const workerNameInput = document.querySelector("#workerName");
 const workerIdInput = document.querySelector("#workerId");
 const workerOptions = document.querySelectorAll("#workersList option");
+const entriesVisibilityForm = document.querySelector(".entries-visibility-form");
+const visibilityCheckboxes = document.querySelectorAll(".entries-visibility-form input[type='checkbox']");
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -59,6 +61,14 @@ if (entrySearch && entryRows.length > 0) {
     entryRows.forEach((row) => {
       const searchable = row.dataset.search || "";
       row.style.display = searchable.includes(query) ? "" : "none";
+    });
+  });
+}
+
+if (entriesVisibilityForm && visibilityCheckboxes.length > 0) {
+  visibilityCheckboxes.forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      entriesVisibilityForm.requestSubmit();
     });
   });
 }
