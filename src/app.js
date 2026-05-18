@@ -526,12 +526,11 @@ function parseVisibilityFilter(value) {
 }
 
 function resolveEntryVisibilityFilters(query = {}) {
-  const hasExplicitFilters =
-    Object.prototype.hasOwnProperty.call(query, "showPending") ||
-    Object.prototype.hasOwnProperty.call(query, "showFinalized") ||
-    Object.prototype.hasOwnProperty.call(query, "showDeleted");
+  const hasPending = Object.prototype.hasOwnProperty.call(query, "showPending");
+  const hasFinalized = Object.prototype.hasOwnProperty.call(query, "showFinalized");
+  const hasDeleted = Object.prototype.hasOwnProperty.call(query, "showDeleted");
 
-  if (!hasExplicitFilters) {
+  if (!hasPending && !hasFinalized && !hasDeleted) {
     return {
       showPending: true,
       showFinalized: false,
@@ -540,9 +539,9 @@ function resolveEntryVisibilityFilters(query = {}) {
   }
 
   return {
-    showPending: parseVisibilityFilter(query.showPending),
-    showFinalized: parseVisibilityFilter(query.showFinalized),
-    showDeleted: parseVisibilityFilter(query.showDeleted),
+    showPending: hasPending ? parseVisibilityFilter(query.showPending) : false,
+    showFinalized: hasFinalized ? parseVisibilityFilter(query.showFinalized) : false,
+    showDeleted: hasDeleted ? parseVisibilityFilter(query.showDeleted) : false,
   };
 }
 

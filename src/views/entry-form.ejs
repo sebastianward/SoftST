@@ -94,7 +94,13 @@
 
         <label class="full-span">
           Imagenes del estado del equipo
-          <input id="images" type="file" name="images" accept="image/*" multiple>
+          <input id="images" type="file" name="images" accept="image/*" multiple hidden>
+          <input id="imagesGallery" type="file" accept="image/*" multiple hidden>
+          <input id="imagesCamera" type="file" accept="image/*" capture="environment" hidden>
+          <div class="image-input-actions">
+            <button type="button" class="ghost-button" id="openGalleryButton">Abrir galeria</button>
+            <button type="button" class="ghost-button" id="openCameraButton">Usar camara</button>
+          </div>
           <small>Puedes subir hasta 15 imagenes de 5 MB cada una.</small>
         </label>
 

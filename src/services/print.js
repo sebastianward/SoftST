@@ -1,97 +1,63 @@
 const fs = require("fs/promises");
 const net = require("net");
 
+const ENTRY_ZPL_TEMPLATE = [
+  "^XA",
+  "^CI28",
+  "^PW800",
+  "^LL400",
+  "^LH0,0",
+  "^FO80,76^A0N,24,24^FDRegistro Ingresos Antalis Abitek^FS",
+  "^FO80,106^A0N,20,20^FDIngreso #@entry_id^FS",
+  "^FO530,106^A0N,18,18^FD@created_at^FS",
+  "^FO80,132^GB640,2,2^FS",
+  "^FO80,148^A0N,16,16^FDRazon social:^FS",
+  "^FO80,168^A0N,20,20^FD@business_name_1^FS",
+  "^FO80,190^A0N,20,20^FD@business_name_2^FS",
+  "^FO420,148^A0N,16,16^FDContacto:^FS",
+  "^FO420,168^A0N,20,20^FD@contact_name_1^FS",
+  "^FO420,190^A0N,20,20^FD@contact_name_2^FS",
+  "^FO80,220^A0N,16,16^FDEquipo:^FS",
+  "^FO80,240^A0N,20,20^FD@equipment_model_1^FS",
+  "^FO80,262^A0N,20,20^FD@equipment_model_2^FS",
+  "^FO420,220^A0N,16,16^FDSerie:^FS",
+  "^FO420,240^A0N,20,20^FD@serial_number_1^FS",
+  "^FO420,262^A0N,20,20^FD@serial_number_2^FS",
+  "^FO80,292^A0N,16,16^FDIngresado por:^FS",
+  "^FO80,312^A0N,20,20^FD@worker_name_snapshot_1^FS",
+  "^FO80,334^A0N,20,20^FD@worker_name_snapshot_2^FS",
+  "^XZ",
+].join("\n");
+
 function buildEntryZpl(entry) {
-  const lines = [
-    "^XA",
-    "^CI28",
-    "^PW812",
-    "^LL560",
-    "^LH0,0",
-    "^FO24,18^GB764,2,2^FS",
-    "^FO32,28^A0N,28,28^FDRegistro Ingresos Antalis Abitek^FS",
-    "^FO32,62^A0N,24,24^FDIngreso #" + sanitize(entry.id) + "^FS",
-    "^FO600,62^A0N,22,22^FD" + sanitize(formatDate(entry.created_at)) + "^FS",
-    "^FO24,92^GB764,2,2^FS",
-  ];
+  const replacements = {
+    "@entry_id": sanitize(entry.id),
+    "@created_at": sanitize(formatDate(entry.created_at)),
+    ...buildWrappedFieldReplacements("business_name", entry.business_name, 24, 2),
+    ...buildWrappedFieldReplacements("contact_name", entry.contact_name, 24, 2),
+    ...buildWrappedFieldReplacements("equipment_model", entry.equipment_model, 24, 2),
+    ...buildWrappedFieldReplacements("serial_number", entry.serial_number || "-", 24, 2),
+    ...buildWrappedFieldReplacements("worker_name_snapshot", entry.worker_name_snapshot, 52, 2),
+  };
 
-  const leftX = 30;
-  const rightX = 410;
-  const topY = 108;
-  const rowGap = 54;
-  const wrapAt = 24;
-  const fields = [
-    { label: "Razon social", value: entry.business_name, x: leftX, y: topY, lines: 2 },
-    { label: "Contacto", value: entry.contact_name, x: rightX, y: topY, lines: 2 },
-    { label: "Equipo", value: entry.equipment_model, x: leftX, y: topY + rowGap * 2, lines: 2 },
-    { label: "Serie", value: entry.serial_number || "-", x: rightX, y: topY + rowGap * 2, lines: 2 },
-    { label: "Ingresado por", value: entry.worker_name_snapshot, x: leftX, y: topY + rowGap * 4, lines: 2 },
-  ];
-
-  fields.forEach((field) => {
-    pushCompactField(lines, {
-      x: field.x,
-      y: field.y,
-      label: field.label,
-      value: field.value,
-      wrapAt,
-      maxLines: field.lines,
-    });
-  });
-
-  lines.push("^FO24,346^GB764,2,2^FS");
-
-  pushSection(lines, {
-    y: 360,
-    title: "Reporte del cliente",
-    value: entry.client_report || "-",
-    x: leftX,
-    wrapAt: 42,
-    maxLines: 5,
-  });
-
-  pushSection(lines, {
-    y: 360,
-    title: "Detalle y accesorios",
-    value: entry.details_accessories || "-",
-    x: rightX,
-    wrapAt: 22,
-    maxLines: 5,
-  });
-
-  lines.push("^XZ");
-  return lines.join("\n");
+  return Object.entries(replacements).reduce(
+    (template, [token, value]) => template.replaceAll(token, value),
+    ENTRY_ZPL_TEMPLATE
+  );
 }
 
-function pushCompactField(lines, options) {
-  lines.push(`^FO${options.x},${options.y}^A0N,18,18^FD${sanitize(options.label)}:^FS`);
-  const wrapped = wrapText(options.value, options.wrapAt)
-    .slice(0, options.maxLines)
+function buildWrappedFieldReplacements(key, value, wrapAt, maxLines) {
+  const wrapped = wrapText(value, wrapAt)
+    .slice(0, maxLines)
     .map((line, index, array) =>
-      index === array.length - 1 ? withEllipsis(line, options.value, options.wrapAt, options.maxLines, index) : line
-    );
-  let cursorY = options.y + 20;
-  wrapped.forEach((line) => {
-    lines.push(`^FO${options.x},${cursorY}^A0N,22,22^FD${sanitize(line)}^FS`);
-    cursorY += 22;
-  });
-}
-
-function pushSection(lines, options) {
-  lines.push(`^FO${options.x},${options.y}^A0N,18,18^FD${sanitize(options.title)}:^FS`);
-  let cursorY = options.y + 20;
-
-  const wrapped = wrapText(options.value, options.wrapAt)
-    .slice(0, options.maxLines)
-    .map((line, index, array) =>
-      index === array.length - 1 ? withEllipsis(line, options.value, options.wrapAt, options.maxLines, index) : line
+      index === array.length - 1 ? withEllipsis(line, value, wrapAt, maxLines, index) : line
     );
 
-  wrapped
-    .forEach((line) => {
-      lines.push(`^FO${options.x},${cursorY}^A0N,20,20^FD${sanitize(line)}^FS`);
-      cursorY += 20;
-    });
+  const replacements = {};
+  for (let index = 0; index < maxLines; index += 1) {
+    replacements[`@${key}_${index + 1}`] = sanitize(wrapped[index] || "");
+  }
+  return replacements;
 }
 
 function wrapText(value, maxChars) {
@@ -193,6 +159,7 @@ async function sendZplToPrinter({ mode, host, port, devicePath, zpl }) {
 }
 
 module.exports = {
+  ENTRY_ZPL_TEMPLATE,
   buildEntryZpl,
   sendZplToPrinter,
 };

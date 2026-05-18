@@ -1,4 +1,8 @@
 const input = document.querySelector("#images");
+const galleryInput = document.querySelector("#imagesGallery");
+const cameraInput = document.querySelector("#imagesCamera");
+const openGalleryButton = document.querySelector("#openGalleryButton");
+const openCameraButton = document.querySelector("#openCameraButton");
 const preview = document.querySelector("#imagePreview");
 const themeButtons = document.querySelectorAll("[data-theme-toggle]");
 const themeLabels = document.querySelectorAll("[data-theme-label]");
@@ -66,9 +70,20 @@ if (entrySearch && entryRows.length > 0) {
 }
 
 if (entriesVisibilityForm && visibilityCheckboxes.length > 0) {
+  const syncEntriesVisibility = () => {
+    const params = new URLSearchParams(window.location.search);
+
+    visibilityCheckboxes.forEach((checkbox) => {
+      params.set(checkbox.name, checkbox.checked ? "1" : "0");
+    });
+
+    const query = params.toString();
+    window.location.assign(`${entriesVisibilityForm.action}?${query}`);
+  };
+
   visibilityCheckboxes.forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
-      entriesVisibilityForm.requestSubmit();
+      syncEntriesVisibility();
     });
   });
 }
@@ -185,11 +200,20 @@ if (workerNameInput && workerIdInput && workerOptions.length > 0) {
   syncWorkerSelection();
 }
 
-if (input && preview) {
-  input.addEventListener("change", () => {
+if (input && preview && galleryInput && cameraInput && openGalleryButton && openCameraButton) {
+  const maxImages = 15;
+  const selectedImageFiles = [];
+
+  const syncSelectedFilesToInput = () => {
+    const transfer = new DataTransfer();
+    selectedImageFiles.forEach((file) => transfer.items.add(file));
+    input.files = transfer.files;
+  };
+
+  const renderSelectedImages = () => {
     preview.innerHTML = "";
 
-    Array.from(input.files || []).forEach((file) => {
+    selectedImageFiles.forEach((file, index) => {
       const wrapper = document.createElement("figure");
       wrapper.className = "preview-card";
 
@@ -200,9 +224,56 @@ if (input && preview) {
       const caption = document.createElement("figcaption");
       caption.textContent = file.name;
 
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "ghost-button preview-remove";
+      removeButton.textContent = "Quitar";
+      removeButton.addEventListener("click", () => {
+        selectedImageFiles.splice(index, 1);
+        syncSelectedFilesToInput();
+        renderSelectedImages();
+      });
+
       wrapper.appendChild(image);
       wrapper.appendChild(caption);
+      wrapper.appendChild(removeButton);
       preview.appendChild(wrapper);
     });
+  };
+
+  const appendIncomingFiles = (incomingFiles) => {
+    Array.from(incomingFiles || []).forEach((file) => {
+      const exists = selectedImageFiles.some(
+        (current) =>
+          current.name === file.name &&
+          current.size === file.size &&
+          current.lastModified === file.lastModified
+      );
+
+      if (!exists && selectedImageFiles.length < maxImages) {
+        selectedImageFiles.push(file);
+      }
+    });
+
+    syncSelectedFilesToInput();
+    renderSelectedImages();
+  };
+
+  openGalleryButton.addEventListener("click", () => {
+    galleryInput.click();
+  });
+
+  openCameraButton.addEventListener("click", () => {
+    cameraInput.click();
+  });
+
+  galleryInput.addEventListener("change", () => {
+    appendIncomingFiles(galleryInput.files);
+    galleryInput.value = "";
+  });
+
+  cameraInput.addEventListener("change", () => {
+    appendIncomingFiles(cameraInput.files);
+    cameraInput.value = "";
   });
 }

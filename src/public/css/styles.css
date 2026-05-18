@@ -738,6 +738,12 @@ dd {
   gap: 0.75rem;
 }
 
+.image-input-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .image-grid img,
 .preview-card img {
   width: 100%;
@@ -755,6 +761,11 @@ dd {
   margin-top: 0.4rem;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.preview-remove {
+  margin-top: 0.45rem;
+  width: 100%;
 }
 
 .split-layout {
@@ -1123,6 +1134,11 @@ dd {
   .image-grid,
   .image-preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .image-input-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }
 
