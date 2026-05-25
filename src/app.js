@@ -488,6 +488,10 @@ function isServiceTecnicoArea(area) {
   return normalizeArea(area) === "servicio_tecnico";
 }
 
+function isReplacementVehicleName(name) {
+  return /^reemplazo\b/i.test(String(name || "").trim());
+}
+
 function canAccessVehiclesArea(req) {
   return isServiceTecnicoArea(getEffectiveArea(req));
 }
@@ -503,7 +507,7 @@ function ensureVehicleAccess(req, res) {
 }
 
 function getVehicleOrderClause() {
-  return "ORDER BY is_replacement ASC, lower(name) ASC, id ASC";
+  return "ORDER BY CASE WHEN is_replacement = 1 OR lower(name) LIKE 'reemplazo%' THEN 1 ELSE 0 END ASC, lower(name) ASC, id ASC";
 }
 
 function getWorkersForVehicles() {
@@ -513,9 +517,10 @@ function getWorkersForVehicles() {
 }
 
 function normalizeVehicle(row) {
+  const isReplacement = Number(row.is_replacement) === 1 || isReplacementVehicleName(row.name);
   return {
     ...row,
-    is_replacement: Number(row.is_replacement) === 1,
+    is_replacement: isReplacement,
     has_assignment: Boolean(row.assigned_worker_id),
   };
 }
@@ -546,6 +551,18 @@ function seedDefaultVehicles() {
       [name, index >= 10 ? 1 : 0, formatLocalDateTime()]
     );
   });
+}
+
+function backfillReplacementVehicles() {
+  db.run(
+    `UPDATE vehicles
+     SET is_replacement = 1,
+         updated_at = ?
+     WHERE area = 'servicio_tecnico'
+       AND lower(name) LIKE 'reemplazo%'
+       AND is_replacement != 1`,
+    [formatLocalDateTime()]
+  );
 }
 
 function closeVehicleHistoryForVehicle(vehicleId, endedAt, reason) {
@@ -1046,6 +1063,7 @@ async function bootstrap() {
   backfillWorkerEmailsAndAccounts();
   backfillNotifications();
   seedDefaultVehicles();
+  backfillReplacementVehicles();
   processVehicleShiftReset();
   setInterval(triggerPrintWorker, 15000);
   setInterval(() => processVehicleShiftReset(), 30000);
