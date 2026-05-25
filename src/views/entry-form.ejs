@@ -74,22 +74,35 @@
 
         <label>
           Ingresado por *
-          <input
-            type="text"
-            name="workerName"
-            id="workerName"
-            list="workersList"
-            placeholder="Escribe o selecciona un trabajador"
-            value="<%= formData.workerName || "" %>"
-            autocomplete="off"
-            required
-          >
-          <input type="hidden" name="workerId" id="workerId" value="<%= formData.workerId || "" %>">
-          <datalist id="workersList">
-            <% workers.forEach((worker) => { %>
-              <option value="<%= worker.name %>" data-id="<%= worker.id %>"></option>
-            <% }) %>
-          </datalist>
+          <div class="worker-picker">
+            <input
+              type="search"
+              id="workerSearchField"
+              placeholder="Busca un trabajador por nombre"
+              autocomplete="off"
+              value="<%= formData.workerName || "" %>"
+              required
+            >
+            <input type="hidden" name="workerId" id="workerId" value="<%= formData.workerId || "" %>">
+            <input type="hidden" name="workerName" id="workerName" value="<%= formData.workerName || "" %>">
+            <div class="worker-picker-menu" id="workerPickerMenu" hidden>
+              <ul class="worker-picker-list" id="workerPickerList">
+                <% workers.forEach((worker) => { %>
+                  <li>
+                    <button
+                      type="button"
+                      class="worker-picker-option"
+                      data-worker-id="<%= worker.id %>"
+                      data-worker-name="<%= worker.name %>"
+                    >
+                      <%= worker.name %>
+                    </button>
+                  </li>
+                <% }) %>
+              </ul>
+              <p class="worker-picker-empty" id="workerPickerEmpty" hidden>No hay coincidencias.</p>
+            </div>
+          </div>
         </label>
 
         <label class="full-span">

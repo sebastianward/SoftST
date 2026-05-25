@@ -22,9 +22,13 @@ const textModalTriggers = document.querySelectorAll(".comment-modal-trigger, .te
 const textModalClosers = document.querySelectorAll("[data-close-text-modal]");
 let activeTextInput = null;
 let activeTextForm = null;
-const workerNameInput = document.querySelector("#workerName");
+const workerSearchField = document.querySelector("#workerSearchField");
+const workerPickerMenu = document.querySelector("#workerPickerMenu");
+const workerPickerList = document.querySelector("#workerPickerList");
+const workerPickerEmpty = document.querySelector("#workerPickerEmpty");
 const workerIdInput = document.querySelector("#workerId");
-const workerOptions = document.querySelectorAll("#workersList option");
+const workerNameInput = document.querySelector("#workerName");
+const workerOptions = workerPickerList ? Array.from(workerPickerList.querySelectorAll(".worker-picker-option")) : [];
 const entriesVisibilityForm = document.querySelector(".entries-visibility-form");
 const visibilityCheckboxes = document.querySelectorAll(".entries-visibility-form input[type='checkbox']");
 
@@ -185,19 +189,92 @@ if (textModal && textModalTextarea && textModalTriggers.length > 0) {
   });
 }
 
-if (workerNameInput && workerIdInput && workerOptions.length > 0) {
-  const workerMap = new Map(
-    Array.from(workerOptions).map((option) => [option.value.toLowerCase(), option.dataset.id])
-  );
-
-  const syncWorkerSelection = () => {
-    const value = workerNameInput.value.trim().toLowerCase();
-    workerIdInput.value = workerMap.get(value) || "";
+if (workerSearchField && workerPickerMenu && workerIdInput && workerNameInput && workerOptions.length > 0) {
+  const openWorkerPicker = () => {
+    workerPickerMenu.hidden = false;
   };
 
-  workerNameInput.addEventListener("input", syncWorkerSelection);
-  workerNameInput.addEventListener("change", syncWorkerSelection);
-  syncWorkerSelection();
+  const closeWorkerPicker = () => {
+    workerPickerMenu.hidden = true;
+  };
+
+  const syncWorkerSelection = (option) => {
+    workerIdInput.value = option?.dataset.workerId || "";
+    workerNameInput.value = option?.dataset.workerName || "";
+    workerSearchField.value = option?.dataset.workerName || workerSearchField.value;
+  };
+
+  const filterWorkerOptions = () => {
+    const query = workerSearchField.value.trim().toLowerCase();
+    if (!query) {
+      workerPickerMenu.hidden = true;
+      workerPickerEmpty.hidden = true;
+      workerOptions.forEach((option) => {
+        option.parentElement.hidden = true;
+      });
+      return;
+    }
+
+    openWorkerPicker();
+    let visibleCount = 0;
+
+    workerOptions.forEach((option) => {
+      const matches = !query || String(option.dataset.workerName || "").toLowerCase().includes(query);
+      option.parentElement.hidden = !matches;
+      if (matches) {
+        visibleCount += 1;
+      }
+    });
+
+    if (visibleCount === 0) {
+      workerPickerEmpty.hidden = false;
+    } else {
+      workerPickerEmpty.hidden = true;
+    }
+
+    const selectedStillVisible = workerOptions.some(
+      (option) => option.dataset.workerId === workerIdInput.value && !option.parentElement.hidden
+    );
+    if (workerIdInput.value && !selectedStillVisible && query) {
+      workerIdInput.value = "";
+      workerNameInput.value = "";
+    }
+  };
+
+  workerSearchField.addEventListener("input", () => {
+    filterWorkerOptions();
+  });
+  workerSearchField.addEventListener("focus", () => {
+    if (workerSearchField.value.trim()) {
+      filterWorkerOptions();
+    }
+  });
+
+  workerOptions.forEach((option) => {
+    option.addEventListener("click", () => {
+      syncWorkerSelection(option);
+      closeWorkerPicker();
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (
+      target !== workerSearchField &&
+      !workerPickerMenu.contains(target)
+    ) {
+      closeWorkerPicker();
+    }
+  });
+
+  if (workerIdInput.value) {
+    const selectedOption = workerOptions.find((option) => option.dataset.workerId === workerIdInput.value);
+    if (selectedOption) {
+      syncWorkerSelection(selectedOption);
+    }
+  }
+
+  filterWorkerOptions();
 }
 
 if (input && preview && galleryInput && cameraInput && openGalleryButton && openCameraButton) {
