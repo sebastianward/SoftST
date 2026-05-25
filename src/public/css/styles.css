@@ -1009,6 +1009,86 @@ dd {
   gap: 1rem;
 }
 
+.vehicles-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.vehicles-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.vehicle-maintenance-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.vehicles-subtabs {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 1rem;
+}
+
+.vehicles-table,
+.vehicles-history-table {
+  min-width: 1120px;
+}
+
+.vehicles-table th,
+.vehicles-table td,
+.vehicles-history-table th,
+.vehicles-history-table td {
+  vertical-align: middle;
+}
+
+.vehicle-worker-cell {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.vehicle-worker-cell strong,
+.vehicles-history-table strong {
+  margin: 0;
+}
+
+.vehicle-worker-cell small {
+  color: var(--muted);
+}
+
+.vehicle-assign-col {
+  min-width: 360px;
+}
+
+.vehicle-inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.vehicle-inline-form .worker-picker {
+  min-width: 0;
+}
+
+.vehicles-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.vehicle-maintenance-form {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
 .workers-admin-panel h2 {
   margin: 0;
 }
@@ -1161,7 +1241,8 @@ dd {
 
   .notification-card,
   .worker-card-compact,
-  .worker-card-compact .worker-form {
+  .worker-card-compact .worker-form,
+  .vehicle-inline-form {
     gap: 0.75rem;
   }
 
@@ -1178,7 +1259,9 @@ dd {
   }
 
   .workers-toolbar,
-  .worker-card-compact .worker-form {
+  .worker-card-compact .worker-form,
+  .vehicle-maintenance-form,
+  .vehicle-inline-form {
     display: grid;
     grid-template-columns: 1fr;
   }

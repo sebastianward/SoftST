@@ -14,6 +14,9 @@
       <a href="/">Inicio</a>
       <a href="/entries">Ingresos</a>
       <a href="/entries/new">Nuevo ingreso</a>
+      <% if (showVehiclesModule) { %>
+        <a href="/camionetas">Camionetas</a>
+      <% } %>
       <% if (currentUser.role === "admin") { %>
         <a href="/workers">Trabajadores</a>
         <a href="/settings">Configuracion</a>

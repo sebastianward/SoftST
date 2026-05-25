@@ -1,0 +1,194 @@
+<%- include("partials/head", { title: "Camionetas" }) %>
+<%- include("partials/header") %>
+
+<main class="page-shell vehicles-shell">
+  <section class="panel">
+    <div class="panel-title panel-title-workers">
+      <div>
+        <h1>Camionetas | Servicio Tecnico</h1>
+        <span>Turno activo desde <%= currentShiftKey %>. Cada trabajador puede quedar en una sola camioneta.</span>
+      </div>
+      <div class="vehicles-summary">
+        <span class="comment-indicator has-comment"><%= vehicles.filter((vehicle) => vehicle.has_assignment).length %> asignadas</span>
+        <span class="comment-indicator"><%= vehicles.filter((vehicle) => !vehicle.has_assignment).length %> libres</span>
+      </div>
+    </div>
+
+    <div class="vehicles-subtabs">
+      <a href="/camionetas?tab=assignments" class="area-chip <%= activeTab === 'assignments' ? 'is-active' : '' %>">Asignaciones</a>
+      <% if (canManageVehicles) { %>
+        <a href="/camionetas?tab=manage" class="area-chip <%= activeTab === 'manage' ? 'is-active' : '' %>">Mantencion</a>
+        <a href="/camionetas?tab=history" class="area-chip <%= activeTab === 'history' ? 'is-active' : '' %>">Historial</a>
+      <% } %>
+    </div>
+
+    <% if (activeTab === "assignments") { %>
+      <% if (vehicles.length === 0) { %>
+        <p class="empty-state">No hay camionetas registradas todavia.</p>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="vehicles-table">
+            <thead>
+              <tr>
+                <th>Camioneta</th>
+                <th>Tipo</th>
+                <th>Trabajador actual</th>
+                <th>Asignar</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% vehicles.forEach((vehicle) => { %>
+                <tr>
+                  <td>
+                    <strong><%= vehicle.name %></strong>
+                  </td>
+                  <td><%= vehicle.is_replacement ? "Reemplazo" : "Patente" %></td>
+                  <td>
+                    <div class="vehicle-worker-cell">
+                      <strong><%= vehicle.assigned_worker_name_snapshot || "Libre" %></strong>
+                      <% if (vehicle.assigned_at) { %>
+                        <small>Desde <%= vehicle.assigned_at %></small>
+                      <% } %>
+                    </div>
+                  </td>
+                  <td class="vehicle-assign-col">
+                    <form action="/camionetas/<%= vehicle.id %>/assign" method="post" class="vehicle-inline-form">
+                      <div class="worker-picker vehicle-worker-picker" data-vehicle-worker-picker>
+                        <input
+                          type="search"
+                          placeholder="Busca trabajador"
+                          autocomplete="off"
+                          value="<%= vehicle.assigned_worker_name_snapshot || '' %>"
+                          data-worker-search-input
+                          required
+                        >
+                        <input type="hidden" name="workerId" value="<%= vehicle.assigned_worker_id || '' %>" data-worker-id-input>
+                        <input type="hidden" name="workerName" value="<%= vehicle.assigned_worker_name_snapshot || '' %>" data-worker-name-input>
+                        <div class="worker-picker-menu" data-worker-picker-menu hidden>
+                          <ul class="worker-picker-list">
+                            <% workers.forEach((worker) => { %>
+                              <li>
+                                <button
+                                  type="button"
+                                  class="worker-picker-option"
+                                  data-worker-id="<%= worker.id %>"
+                                  data-worker-name="<%= worker.name %>"
+                                >
+                                  <%= worker.name %>
+                                </button>
+                              </li>
+                            <% }) %>
+                          </ul>
+                          <p class="worker-picker-empty" data-worker-picker-empty hidden>No hay coincidencias.</p>
+                        </div>
+                      </div>
+                      <button type="submit">Guardar</button>
+                    </form>
+                  </td>
+                  <td>
+                    <div class="table-actions-buttons">
+                      <% if (vehicle.has_assignment) { %>
+                        <form action="/camionetas/<%= vehicle.id %>/release" method="post">
+                          <button type="submit" class="ghost-button">Liberar</button>
+                        </form>
+                      <% } else { %>
+                        <span class="comment-indicator">Sin acciones</span>
+                      <% } %>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    <% } %>
+
+    <% if (activeTab === "manage" && canManageVehicles) { %>
+      <div class="vehicles-admin-grid">
+        <form class="stack-form" action="/camionetas/create" method="post">
+          <h2>Nueva camioneta</h2>
+          <label>
+            Nombre o patente
+            <input type="text" name="name" placeholder="Ej: KJTR-21 o Reemplazo 4" required>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" name="isReplacement">
+            Marcar como reemplazo
+          </label>
+          <button type="submit">Agregar camioneta</button>
+        </form>
+
+        <form class="stack-form" action="/camionetas/settings/reset-time" method="post">
+          <h2>Horario de reseteo</h2>
+          <label>
+            Hora diaria del servidor
+            <input type="time" name="vehicleResetTime" value="<%= vehicleSettings.vehicle_reset_time %>" required>
+          </label>
+          <p class="inline-hint">A esa hora todas las asignaciones se limpian y se inicia un nuevo turno para el historial.</p>
+          <button type="submit">Guardar horario</button>
+        </form>
+      </div>
+
+      <div class="vehicle-maintenance-list">
+        <% vehicles.forEach((vehicle) => { %>
+          <article class="worker-card worker-card-compact">
+            <form action="/camionetas/<%= vehicle.id %>/update" method="post" class="worker-form vehicle-maintenance-form">
+              <label>
+                Nombre
+                <input type="text" name="name" value="<%= vehicle.name %>" required>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" name="isReplacement" <%= vehicle.is_replacement ? "checked" : "" %>>
+                Reemplazo
+              </label>
+              <button type="submit">Guardar</button>
+            </form>
+
+            <form action="/camionetas/<%= vehicle.id %>/delete" method="post" onsubmit="return confirm('Se eliminara la camioneta <%= vehicle.name %>. Quieres continuar?');">
+              <button type="submit" class="danger-button">Eliminar</button>
+            </form>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+
+    <% if (activeTab === "history" && canManageVehicles) { %>
+      <% if (historyRows.length === 0) { %>
+        <p class="empty-state">Todavia no hay movimientos registrados.</p>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="vehicles-history-table">
+            <thead>
+              <tr>
+                <th>Fecha y hora</th>
+                <th>Usuario</th>
+                <th>Evento</th>
+                <th>Camioneta</th>
+                <th>Trabajador</th>
+                <th>Turno</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% historyRows.forEach((row) => { %>
+                <tr>
+                  <td><%= row.created_at %></td>
+                  <td><%= row.actor_username_snapshot || "Sistema" %></td>
+                  <td><strong><%= row.event_label %></strong></td>
+                  <td><%= row.vehicle_name_snapshot || "-" %></td>
+                  <td><%= row.worker_name_snapshot || "-" %></td>
+                  <td><%= row.shift_key || "-" %></td>
+                  <td><%= row.details || "-" %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    <% } %>
+  </section>
+</main>
+
+<%- include("partials/foot") %>

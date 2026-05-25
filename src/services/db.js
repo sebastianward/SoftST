@@ -122,6 +122,55 @@ class DatabaseService {
         setting_value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS vehicles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        area TEXT NOT NULL DEFAULT 'servicio_tecnico',
+        is_replacement INTEGER NOT NULL DEFAULT 0,
+        assigned_worker_id INTEGER,
+        assigned_worker_name_snapshot TEXT,
+        assigned_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(assigned_worker_id) REFERENCES workers(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS vehicle_assignment_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL,
+        vehicle_name_snapshot TEXT NOT NULL,
+        worker_id INTEGER NOT NULL,
+        worker_name_snapshot TEXT NOT NULL,
+        area TEXT NOT NULL DEFAULT 'servicio_tecnico',
+        shift_key TEXT NOT NULL,
+        assigned_at TEXT NOT NULL,
+        unassigned_at TEXT,
+        unassigned_reason TEXT,
+        assigned_by_user_id INTEGER,
+        FOREIGN KEY(vehicle_id) REFERENCES vehicles(id),
+        FOREIGN KEY(worker_id) REFERENCES workers(id),
+        FOREIGN KEY(assigned_by_user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS vehicle_activity_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        area TEXT NOT NULL DEFAULT 'servicio_tecnico',
+        vehicle_id INTEGER,
+        vehicle_name_snapshot TEXT,
+        worker_id INTEGER,
+        worker_name_snapshot TEXT,
+        event_type TEXT NOT NULL,
+        event_label TEXT NOT NULL,
+        details TEXT,
+        shift_key TEXT,
+        actor_user_id INTEGER,
+        actor_username_snapshot TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(vehicle_id) REFERENCES vehicles(id),
+        FOREIGN KEY(worker_id) REFERENCES workers(id),
+        FOREIGN KEY(actor_user_id) REFERENCES users(id)
+      );
     `);
   }
 
@@ -143,6 +192,11 @@ class DatabaseService {
     this.ensureColumn("entries", "area", "TEXT NOT NULL DEFAULT 'servicio_tecnico'");
     this.ensureColumn("entries", "deleted_at", "TEXT");
     this.ensureColumn("entries", "deleted_by_user_id", "INTEGER");
+    this.ensureColumn("vehicles", "area", "TEXT NOT NULL DEFAULT 'servicio_tecnico'");
+    this.ensureColumn("vehicles", "is_replacement", "INTEGER NOT NULL DEFAULT 0");
+    this.ensureColumn("vehicles", "assigned_worker_id", "INTEGER");
+    this.ensureColumn("vehicles", "assigned_worker_name_snapshot", "TEXT");
+    this.ensureColumn("vehicles", "assigned_at", "TEXT");
     this.createUniqueIndexes();
     this.backfillLegacyAreas();
   }
@@ -206,6 +260,9 @@ class DatabaseService {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workers_email_unique
       ON workers(email)
       WHERE email IS NOT NULL AND trim(email) != '';
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_vehicles_name_area_unique
+      ON vehicles(area, name);
     `);
   }
 
@@ -220,6 +277,10 @@ class DatabaseService {
       WHERE role != 'admin' AND (area IS NULL OR trim(area) = '');
 
       UPDATE entries
+      SET area = 'servicio_tecnico'
+      WHERE area IS NULL OR trim(area) = '';
+
+      UPDATE vehicles
       SET area = 'servicio_tecnico'
       WHERE area IS NULL OR trim(area) = '';
     `);

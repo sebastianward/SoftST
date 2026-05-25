@@ -87,10 +87,26 @@ const appSettingsDefaults = {
   urgent_days_after_deadline: "1",
   diagnostic_min_days: "5",
   diagnostic_max_days: "7",
+  vehicle_reset_time: "06:00",
+  vehicle_last_reset_shift_key: "",
   mail_info_text:
     "El plazo de diagnostico es de 5 a 7 dias habiles.\nEn caso de que el presupuesto no sea aprobado o caduque por vencimiento, el cliente acepta el cobro de UF 2 por diagnostico.\nLuego de 60 dias de permanencia del equipo por falta de autorizacion o retiro, Antalis Abitek podra gestionar su disposicion informando previamente por correo.",
   mail_banner_path: "",
 };
+
+const defaultVehiclesSeed = [
+  "VVCR-32",
+  "VVDJ-17",
+  "VVCY-73",
+  "VVDG-39",
+  "VVDD-81",
+  "VVCY-53",
+  "VVCR-42",
+  "VVDF-68",
+  "Reemplazo 1",
+  "Reemplazo 2",
+  "Reemplazo 3",
+];
 
 function normalizeArea(value, fallback = "servicio_tecnico") {
   const normalized = String(value || "")
@@ -410,6 +426,391 @@ function getAppSettings() {
   return db.getAppSettings(appSettingsDefaults);
 }
 
+function padTimePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatLocalDateTime(value = new Date()) {
+  return [
+    value.getFullYear(),
+    padTimePart(value.getMonth() + 1),
+    padTimePart(value.getDate()),
+  ].join("-") + ` ${padTimePart(value.getHours())}:${padTimePart(value.getMinutes())}:${padTimePart(value.getSeconds())}`;
+}
+
+function formatShiftKey(value = new Date()) {
+  return [
+    value.getFullYear(),
+    padTimePart(value.getMonth() + 1),
+    padTimePart(value.getDate()),
+  ].join("-") + ` ${padTimePart(value.getHours())}:${padTimePart(value.getMinutes())}`;
+}
+
+function parseResetTime(value) {
+  const normalized = String(value || "").trim();
+  const match = normalized.match(/^(\d{2}):(\d{2})$/);
+
+  if (!match) {
+    return { hours: 6, minutes: 0, normalized: "06:00" };
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return { hours: 6, minutes: 0, normalized: "06:00" };
+  }
+
+  return {
+    hours,
+    minutes,
+    normalized: `${padTimePart(hours)}:${padTimePart(minutes)}`,
+  };
+}
+
+function getShiftStartDate(referenceDate = new Date(), resetTime = appSettingsDefaults.vehicle_reset_time) {
+  const reset = parseResetTime(resetTime);
+  const shiftStart = new Date(referenceDate);
+  shiftStart.setHours(reset.hours, reset.minutes, 0, 0);
+
+  if (referenceDate < shiftStart) {
+    shiftStart.setDate(shiftStart.getDate() - 1);
+  }
+
+  return shiftStart;
+}
+
+function getCurrentShiftKey(resetTime = appSettingsDefaults.vehicle_reset_time, referenceDate = new Date()) {
+  return formatShiftKey(getShiftStartDate(referenceDate, resetTime));
+}
+
+function isServiceTecnicoArea(area) {
+  return normalizeArea(area) === "servicio_tecnico";
+}
+
+function canAccessVehiclesArea(req) {
+  return isServiceTecnicoArea(getEffectiveArea(req));
+}
+
+function ensureVehicleAccess(req, res) {
+  if (canAccessVehiclesArea(req)) {
+    return true;
+  }
+
+  setFlash(req, "error", "El modulo Camionetas solo esta disponible para Servicio Tecnico.");
+  res.redirect("/");
+  return false;
+}
+
+function getVehicleOrderClause() {
+  return "ORDER BY is_replacement ASC, lower(name) ASC, id ASC";
+}
+
+function getWorkersForVehicles() {
+  return db.all(
+    "SELECT id, name, email FROM workers WHERE active = 1 AND area = 'servicio_tecnico' ORDER BY name ASC"
+  );
+}
+
+function normalizeVehicle(row) {
+  return {
+    ...row,
+    is_replacement: Number(row.is_replacement) === 1,
+    has_assignment: Boolean(row.assigned_worker_id),
+  };
+}
+
+function getVehiclesForArea(area = "servicio_tecnico") {
+  return db.all(
+    `SELECT id, name, area, is_replacement, assigned_worker_id, assigned_worker_name_snapshot, assigned_at
+     FROM vehicles
+     WHERE area = ?
+     ${getVehicleOrderClause()}`,
+    [normalizeArea(area)]
+  ).map(normalizeVehicle);
+}
+
+function seedDefaultVehicles() {
+  const existingCount = Number(
+    db.get("SELECT COUNT(*) AS count FROM vehicles WHERE area = 'servicio_tecnico'")?.count || 0
+  );
+
+  if (existingCount > 0) {
+    return;
+  }
+
+  defaultVehiclesSeed.forEach((name, index) => {
+    db.run(
+      `INSERT INTO vehicles (name, area, is_replacement, updated_at)
+       VALUES (?, 'servicio_tecnico', ?, ?)`,
+      [name, index >= 10 ? 1 : 0, formatLocalDateTime()]
+    );
+  });
+}
+
+function closeVehicleHistoryForVehicle(vehicleId, endedAt, reason) {
+  db.run(
+    `UPDATE vehicle_assignment_history
+     SET unassigned_at = ?, unassigned_reason = ?
+     WHERE vehicle_id = ? AND unassigned_at IS NULL`,
+    [endedAt, reason, Number(vehicleId)]
+  );
+}
+
+function releaseVehicleAssignment(vehicleId, endedAt, reason) {
+  const vehicle = db.get(
+    "SELECT id, name, assigned_worker_id, assigned_worker_name_snapshot FROM vehicles WHERE id = ?",
+    [Number(vehicleId)]
+  );
+
+  closeVehicleHistoryForVehicle(vehicleId, endedAt, reason);
+  db.run(
+    `UPDATE vehicles
+     SET assigned_worker_id = NULL,
+         assigned_worker_name_snapshot = NULL,
+         assigned_at = NULL,
+         updated_at = ?
+     WHERE id = ?`,
+    [endedAt, Number(vehicleId)]
+  );
+
+  return vehicle;
+}
+
+function assignWorkerToVehicle({ vehicleId, workerId, assignedByUserId, assignedAt = formatLocalDateTime() }) {
+  const vehicle = db.get(
+    "SELECT id, name, area, assigned_worker_id, assigned_worker_name_snapshot FROM vehicles WHERE id = ?",
+    [Number(vehicleId)]
+  );
+
+  if (!vehicle || !isServiceTecnicoArea(vehicle.area)) {
+    throw new Error("Camioneta no encontrada.");
+  }
+
+  const worker = db.get(
+    "SELECT id, name FROM workers WHERE id = ? AND active = 1 AND area = 'servicio_tecnico'",
+    [Number(workerId)]
+  );
+  const actor = db.get("SELECT username FROM users WHERE id = ?", [Number(assignedByUserId)]);
+
+  if (!worker) {
+    throw new Error("Trabajador invalido para asignacion.");
+  }
+
+  if (Number(vehicle.assigned_worker_id) === Number(worker.id)) {
+    return { changed: false, worker, vehicle };
+  }
+
+  const existingVehicleForWorker = db.get(
+    "SELECT id FROM vehicles WHERE assigned_worker_id = ? AND area = 'servicio_tecnico' AND id != ?",
+    [Number(worker.id), Number(vehicle.id)]
+  );
+
+  if (existingVehicleForWorker) {
+    const releasedVehicle = releaseVehicleAssignment(existingVehicleForWorker.id, assignedAt, "reassigned");
+    logVehicleActivity({
+      eventType: "worker_reassigned_release",
+      eventLabel: "Trabajador liberado por reasignacion",
+      vehicleId: releasedVehicle?.id,
+      vehicleName: releasedVehicle?.name,
+      workerId: releasedVehicle?.assigned_worker_id,
+      workerName: releasedVehicle?.assigned_worker_name_snapshot,
+      details: `${worker.name} fue movido a otra camioneta.`,
+      actorUserId: assignedByUserId,
+      actorUsername: actor?.username || "Sistema",
+      createdAt: assignedAt,
+    });
+  }
+
+  if (vehicle.assigned_worker_id) {
+    const releasedCurrentVehicle = releaseVehicleAssignment(vehicle.id, assignedAt, "reassigned");
+    logVehicleActivity({
+      eventType: "vehicle_reassigned_release",
+      eventLabel: "Asignacion anterior reemplazada",
+      vehicleId: releasedCurrentVehicle?.id,
+      vehicleName: releasedCurrentVehicle?.name,
+      workerId: releasedCurrentVehicle?.assigned_worker_id,
+      workerName: releasedCurrentVehicle?.assigned_worker_name_snapshot,
+      details: `La camioneta ${vehicle.name} cambio de trabajador.`,
+      actorUserId: assignedByUserId,
+      actorUsername: actor?.username || "Sistema",
+      createdAt: assignedAt,
+    });
+  }
+
+  db.run(
+    `UPDATE vehicles
+     SET assigned_worker_id = ?,
+         assigned_worker_name_snapshot = ?,
+         assigned_at = ?,
+         updated_at = ?
+     WHERE id = ?`,
+    [Number(worker.id), worker.name, assignedAt, assignedAt, Number(vehicle.id)]
+  );
+
+  db.run(
+    `INSERT INTO vehicle_assignment_history (
+      vehicle_id, vehicle_name_snapshot, worker_id, worker_name_snapshot, area,
+      shift_key, assigned_at, assigned_by_user_id
+    ) VALUES (?, ?, ?, ?, 'servicio_tecnico', ?, ?, ?)`,
+    [
+      Number(vehicle.id),
+      vehicle.name,
+      Number(worker.id),
+      worker.name,
+      getCurrentShiftKey(getAppSettings().vehicle_reset_time),
+      assignedAt,
+      Number(assignedByUserId),
+    ]
+  );
+
+  logVehicleActivity({
+    eventType: "assignment_created",
+    eventLabel: "Trabajador asignado",
+    vehicleId: vehicle.id,
+    vehicleName: vehicle.name,
+    workerId: worker.id,
+    workerName: worker.name,
+    details: `${worker.name} fue asignado a ${vehicle.name}.`,
+    actorUserId: assignedByUserId,
+    actorUsername: actor?.username || "Sistema",
+    createdAt: assignedAt,
+  });
+
+  return { changed: true, worker, vehicle };
+}
+
+function processVehicleShiftReset(force = false) {
+  const settings = getAppSettings();
+  const currentShiftKey = getCurrentShiftKey(settings.vehicle_reset_time);
+  const lastResetShiftKey = String(settings.vehicle_last_reset_shift_key || "").trim();
+
+  if (!lastResetShiftKey) {
+    db.setAppSettings({ vehicle_last_reset_shift_key: currentShiftKey });
+    return;
+  }
+
+  if (!force && currentShiftKey === lastResetShiftKey) {
+    return;
+  }
+
+  const resetAt = formatLocalDateTime();
+  const assignedVehicles = db.all(
+    "SELECT id FROM vehicles WHERE area = 'servicio_tecnico' AND assigned_worker_id IS NOT NULL"
+  );
+
+  assignedVehicles.forEach((vehicle) => {
+    const releasedVehicle = releaseVehicleAssignment(vehicle.id, resetAt, "shift_reset");
+    logVehicleActivity({
+      eventType: "shift_reset_release",
+      eventLabel: "Liberada por cierre de turno",
+      vehicleId: releasedVehicle?.id,
+      vehicleName: releasedVehicle?.name,
+      workerId: releasedVehicle?.assigned_worker_id,
+      workerName: releasedVehicle?.assigned_worker_name_snapshot,
+      details: `La asignacion se limpio automaticamente al iniciar el turno ${currentShiftKey}.`,
+      actorUsername: "Sistema",
+      createdAt: resetAt,
+      shiftKey: currentShiftKey,
+    });
+  });
+
+  db.setAppSettings({ vehicle_last_reset_shift_key: currentShiftKey });
+  logVehicleActivity({
+    eventType: "shift_reset_completed",
+    eventLabel: "Reseteo automatico ejecutado",
+    details: `Se limpiaron ${assignedVehicles.length} asignaciones al comenzar el turno ${currentShiftKey}.`,
+    actorUsername: "Sistema",
+    createdAt: resetAt,
+    shiftKey: currentShiftKey,
+  });
+}
+
+function getVehicleAssignmentHistory(limit = 120) {
+  return db.all(
+    `SELECT
+       h.id,
+       h.vehicle_id,
+       h.vehicle_name_snapshot,
+       h.worker_id,
+       h.worker_name_snapshot,
+       h.shift_key,
+       h.assigned_at,
+       h.unassigned_at,
+       h.unassigned_reason,
+       u.username AS assigned_by_username
+     FROM vehicle_assignment_history h
+     LEFT JOIN users u ON u.id = h.assigned_by_user_id
+     WHERE h.area = 'servicio_tecnico'
+     ORDER BY h.assigned_at DESC, h.id DESC
+     LIMIT ?`,
+    [Number(limit)]
+  );
+}
+
+function resolveVehiclesTab(value, canManageVehicles) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const allowedTabs = canManageVehicles
+    ? new Set(["assignments", "manage", "history"])
+    : new Set(["assignments"]);
+
+  return allowedTabs.has(normalized) ? normalized : "assignments";
+}
+
+function logVehicleActivity({
+  eventType,
+  eventLabel,
+  vehicleId = null,
+  vehicleName = "",
+  workerId = null,
+  workerName = "",
+  details = "",
+  actorUserId = null,
+  actorUsername = "Sistema",
+  shiftKey = getCurrentShiftKey(getAppSettings().vehicle_reset_time),
+  createdAt = formatLocalDateTime(),
+}) {
+  db.run(
+    `INSERT INTO vehicle_activity_log (
+      area, vehicle_id, vehicle_name_snapshot, worker_id, worker_name_snapshot,
+      event_type, event_label, details, shift_key, actor_user_id, actor_username_snapshot, created_at
+    ) VALUES ('servicio_tecnico', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      vehicleId ? Number(vehicleId) : null,
+      String(vehicleName || "").trim() || null,
+      workerId ? Number(workerId) : null,
+      String(workerName || "").trim() || null,
+      eventType,
+      eventLabel,
+      String(details || "").trim() || null,
+      shiftKey,
+      actorUserId ? Number(actorUserId) : null,
+      actorUsername,
+      createdAt,
+    ]
+  );
+}
+
+function getVehicleActivityHistory(limit = 200) {
+  return db.all(
+    `SELECT
+       id,
+       vehicle_name_snapshot,
+       worker_name_snapshot,
+       event_type,
+       event_label,
+       details,
+       shift_key,
+       actor_username_snapshot,
+       created_at
+     FROM vehicle_activity_log
+     WHERE area = 'servicio_tecnico'
+     ORDER BY created_at DESC, id DESC
+     LIMIT ?`,
+    [Number(limit)]
+  );
+}
+
 function buildNotificationSchedule(entry, settings = getAppSettings()) {
   const createdAt = parseSqliteDate(entry.created_at);
   const pendingActionDays = toPositiveInteger(settings.pending_action_days, 4);
@@ -644,7 +1045,10 @@ async function bootstrap() {
   ]);
   backfillWorkerEmailsAndAccounts();
   backfillNotifications();
+  seedDefaultVehicles();
+  processVehicleShiftReset();
   setInterval(triggerPrintWorker, 15000);
+  setInterval(() => processVehicleShiftReset(), 30000);
 
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
@@ -723,6 +1127,7 @@ async function bootstrap() {
     res.locals.notificationCount = Number(notificationCount || 0);
     res.locals.flash = getFlash(req);
     res.locals.assetVersion = assetVersion;
+    res.locals.showVehiclesModule = isServiceTecnicoArea(currentArea);
     next();
   });
 
@@ -841,6 +1246,252 @@ async function bootstrap() {
     db.run("UPDATE users SET password_hash = ? WHERE id = ?", [nextPasswordHash, Number(user.id)]);
     setFlash(req, "success", "Contrasena actualizada correctamente.");
     return res.redirect(req.get("referer") || "/");
+  });
+
+  app.get("/camionetas", requireAuth, (req, res) => {
+    if (!ensureVehicleAccess(req, res)) {
+      return;
+    }
+
+    const settings = getAppSettings();
+    const canManageVehicles = ["admin", "operator"].includes(req.session.user.role);
+    const activeTab = resolveVehiclesTab(req.query.tab, canManageVehicles);
+    res.render("vehicles", {
+      vehicles: getVehiclesForArea("servicio_tecnico"),
+      workers: getWorkersForVehicles(),
+      historyRows: canManageVehicles ? getVehicleActivityHistory() : [],
+      vehicleSettings: settings,
+      currentShiftKey: getCurrentShiftKey(settings.vehicle_reset_time),
+      canManageVehicles,
+      activeTab,
+    });
+  });
+
+  app.post("/camionetas/:id/assign", requireAuth, (req, res) => {
+    if (!ensureVehicleAccess(req, res)) {
+      return;
+    }
+
+    try {
+      const vehicleId = Number(req.params.id);
+      const workerId = Number(req.body.workerId);
+
+      if (!workerId) {
+        setFlash(req, "error", "Debes seleccionar un trabajador valido.");
+        return res.redirect("/camionetas?tab=assignments");
+      }
+
+      const result = assignWorkerToVehicle({
+        vehicleId,
+        workerId,
+        assignedByUserId: req.session.user.id,
+      });
+
+      if (!result.changed) {
+        setFlash(req, "success", `${result.worker.name} ya estaba asignado a ${result.vehicle.name}.`);
+        return res.redirect("/camionetas?tab=assignments");
+      }
+
+      setFlash(req, "success", `${result.worker.name} fue asignado a ${result.vehicle.name}.`);
+      return res.redirect("/camionetas?tab=assignments");
+    } catch (error) {
+      setFlash(req, "error", error.message || "No se pudo asignar la camioneta.");
+      return res.redirect("/camionetas?tab=assignments");
+    }
+  });
+
+  app.post("/camionetas/:id/release", requireAuth, (req, res) => {
+    if (!ensureVehicleAccess(req, res)) {
+      return;
+    }
+
+    const vehicleId = Number(req.params.id);
+    const vehicle = db.get(
+      "SELECT id, name, area, assigned_worker_id FROM vehicles WHERE id = ?",
+      [vehicleId]
+    );
+
+    if (!vehicle || !isServiceTecnicoArea(vehicle.area)) {
+      setFlash(req, "error", "Camioneta no encontrada.");
+      return res.redirect("/camionetas?tab=assignments");
+    }
+
+    if (!vehicle.assigned_worker_id) {
+      setFlash(req, "error", "La camioneta ya estaba libre.");
+      return res.redirect("/camionetas?tab=assignments");
+    }
+
+    const releasedVehicle = releaseVehicleAssignment(vehicleId, formatLocalDateTime(), "manual_release");
+    logVehicleActivity({
+      eventType: "assignment_released",
+      eventLabel: "Camioneta liberada manualmente",
+      vehicleId: releasedVehicle?.id,
+      vehicleName: releasedVehicle?.name,
+      workerId: releasedVehicle?.assigned_worker_id,
+      workerName: releasedVehicle?.assigned_worker_name_snapshot,
+      details: `Se libero manualmente la asignacion de ${vehicle.name}.`,
+      actorUserId: req.session.user.id,
+      actorUsername: req.session.user.username,
+    });
+    setFlash(req, "success", `Se libero la asignacion de ${vehicle.name}.`);
+    return res.redirect("/camionetas?tab=assignments");
+  });
+
+  app.post("/camionetas/create", requireAuth, requireAdminOrOperator, (req, res) => {
+    if (!ensureVehicleAccess(req, res)) {
+      return;
+    }
+
+    const name = String(req.body.name || "").trim();
+    const isReplacement = req.body.isReplacement === "on" ? 1 : 0;
+
+    if (!name) {
+      setFlash(req, "error", "Debes indicar un nombre o patente para la camioneta.");
+      return res.redirect("/camionetas?tab=manage");
+    }
+
+    const existingVehicle = db.get(
+      "SELECT id FROM vehicles WHERE area = 'servicio_tecnico' AND lower(name) = lower(?)",
+      [name]
+    );
+
+    if (existingVehicle) {
+      setFlash(req, "error", "Ya existe una camioneta con ese nombre.");
+      return res.redirect("/camionetas?tab=manage");
+    }
+
+    db.run(
+      `INSERT INTO vehicles (name, area, is_replacement, updated_at)
+       VALUES (?, 'servicio_tecnico', ?, ?)`,
+      [name, isReplacement, formatLocalDateTime()]
+    );
+    const createdVehicle = db.get("SELECT id, name FROM vehicles ORDER BY id DESC LIMIT 1");
+    logVehicleActivity({
+      eventType: "vehicle_created",
+      eventLabel: "Camioneta creada",
+      vehicleId: createdVehicle?.id,
+      vehicleName: createdVehicle?.name || name,
+      details: `${name} fue creada${isReplacement ? " como reemplazo" : ""}.`,
+      actorUserId: req.session.user.id,
+      actorUsername: req.session.user.username,
+    });
+
+    setFlash(req, "success", `Camioneta ${name} creada correctamente.`);
+    return res.redirect("/camionetas?tab=manage");
+  });
+
+  app.post("/camionetas/:id/update", requireAuth, requireAdminOrOperator, (req, res) => {
+    if (!ensureVehicleAccess(req, res)) {
+      return;
+    }
+
+    const vehicleId = Number(req.params.id);
+    const name = String(req.body.name || "").trim();
+    const isReplacement = req.body.isReplacement === "on" ? 1 : 0;
+    const vehicle = db.get("SELECT id, name, area FROM vehicles WHERE id = ?", [vehicleId]);
+
+    if (!vehicle || !isServiceTecnicoArea(vehicle.area)) {
+      setFlash(req, "error", "Camioneta no encontrada.");
+      return res.redirect("/camionetas?tab=manage");
+    }
+
+    if (!name) {
+      setFlash(req, "error", "Debes indicar un nombre valido.");
+      return res.redirect("/camionetas?tab=manage");
+    }
+
+    const duplicateVehicle = db.get(
+      "SELECT id FROM vehicles WHERE area = 'servicio_tecnico' AND lower(name) = lower(?) AND id != ?",
+      [name, vehicleId]
+    );
+
+    if (duplicateVehicle) {
+      setFlash(req, "error", "Ya existe otra camioneta con ese nombre.");
+      return res.redirect("/camionetas?tab=manage");
+    }
+
+    db.run(
+      `UPDATE vehicles
+       SET name = ?, is_replacement = ?, updated_at = ?
+       WHERE id = ?`,
+      [name, isReplacement, formatLocalDateTime(), vehicleId]
+    );
+    logVehicleActivity({
+      eventType: "vehicle_updated",
+      eventLabel: "Camioneta actualizada",
+      vehicleId: vehicleId,
+      vehicleName: name,
+      details: `Cambio desde "${vehicle.name}" a "${name}"${isReplacement ? " | tipo: reemplazo" : " | tipo: patente"}.`,
+      actorUserId: req.session.user.id,
+      actorUsername: req.session.user.username,
+    });
+
+    setFlash(req, "success", `Camioneta ${vehicle.name} actualizada.`);
+    return res.redirect("/camionetas?tab=manage");
+  });
+
+  app.post("/camionetas/:id/delete", requireAuth, requireAdminOrOperator, (req, res) => {
+    if (!ensureVehicleAccess(req, res)) {
+      return;
+    }
+
+    const vehicleId = Number(req.params.id);
+    const vehicle = db.get(
+      "SELECT id, name, area, assigned_worker_id FROM vehicles WHERE id = ?",
+      [vehicleId]
+    );
+
+    if (!vehicle || !isServiceTecnicoArea(vehicle.area)) {
+      setFlash(req, "error", "Camioneta no encontrada.");
+      return res.redirect("/camionetas?tab=manage");
+    }
+
+    if (vehicle.assigned_worker_id) {
+      const releasedVehicle = releaseVehicleAssignment(vehicleId, formatLocalDateTime(), "vehicle_deleted");
+      logVehicleActivity({
+        eventType: "vehicle_delete_release",
+        eventLabel: "Asignacion liberada por eliminacion",
+        vehicleId: releasedVehicle?.id,
+        vehicleName: releasedVehicle?.name,
+        workerId: releasedVehicle?.assigned_worker_id,
+        workerName: releasedVehicle?.assigned_worker_name_snapshot,
+        details: `La asignacion se libero antes de eliminar ${vehicle.name}.`,
+        actorUserId: req.session.user.id,
+        actorUsername: req.session.user.username,
+      });
+    }
+
+    logVehicleActivity({
+      eventType: "vehicle_deleted",
+      eventLabel: "Camioneta eliminada",
+      vehicleId: vehicleId,
+      vehicleName: vehicle.name,
+      details: `${vehicle.name} fue eliminada del mantenedor.`,
+      actorUserId: req.session.user.id,
+      actorUsername: req.session.user.username,
+    });
+    db.run("DELETE FROM vehicles WHERE id = ?", [vehicleId]);
+    setFlash(req, "success", `Camioneta ${vehicle.name} eliminada.`);
+    return res.redirect("/camionetas?tab=manage");
+  });
+
+  app.post("/camionetas/settings/reset-time", requireAuth, requireAdminOrOperator, (req, res) => {
+    if (!ensureVehicleAccess(req, res)) {
+      return;
+    }
+
+    const resetTime = parseResetTime(req.body.vehicleResetTime).normalized;
+    const previousResetTime = getAppSettings().vehicle_reset_time;
+    db.setAppSettings({ vehicle_reset_time: resetTime });
+    logVehicleActivity({
+      eventType: "reset_time_updated",
+      eventLabel: "Horario de reseteo actualizado",
+      details: `Cambio de ${previousResetTime} a ${resetTime}.`,
+      actorUserId: req.session.user.id,
+      actorUsername: req.session.user.username,
+    });
+    setFlash(req, "success", `Horario de reseteo actualizado a ${resetTime}.`);
+    return res.redirect("/camionetas?tab=manage");
   });
 
   app.get("/entries/new", requireAuth, (req, res) => {

@@ -32,6 +32,7 @@ const workerPickerEmpty = document.querySelector("#workerPickerEmpty");
 const workerIdInput = document.querySelector("#workerId");
 const workerNameInput = document.querySelector("#workerName");
 const workerOptions = workerPickerList ? Array.from(workerPickerList.querySelectorAll(".worker-picker-option")) : [];
+const vehicleWorkerPickers = document.querySelectorAll("[data-vehicle-worker-picker]");
 const entriesVisibilityForm = document.querySelector(".entries-visibility-form");
 const visibilityCheckboxes = document.querySelectorAll(".entries-visibility-form input[type='checkbox']");
 const entriesTable = document.querySelector("#entriesTable");
@@ -339,6 +340,100 @@ if (workerSearchField && workerPickerMenu && workerIdInput && workerNameInput &&
   }
 
   filterWorkerOptions();
+}
+
+if (vehicleWorkerPickers.length > 0) {
+  vehicleWorkerPickers.forEach((picker) => {
+    const searchInput = picker.querySelector("[data-worker-search-input]");
+    const idInput = picker.querySelector("[data-worker-id-input]");
+    const nameInput = picker.querySelector("[data-worker-name-input]");
+    const menu = picker.querySelector("[data-worker-picker-menu]");
+    const emptyState = picker.querySelector("[data-worker-picker-empty]");
+    const options = Array.from(picker.querySelectorAll(".worker-picker-option"));
+
+    if (!searchInput || !idInput || !nameInput || !menu || !emptyState || options.length === 0) {
+      return;
+    }
+
+    const openPicker = () => {
+      menu.hidden = false;
+    };
+
+    const closePicker = () => {
+      menu.hidden = true;
+    };
+
+    const syncSelection = (option) => {
+      idInput.value = option?.dataset.workerId || "";
+      nameInput.value = option?.dataset.workerName || "";
+      searchInput.value = option?.dataset.workerName || searchInput.value;
+    };
+
+    const filterOptions = () => {
+      const query = searchInput.value.trim().toLowerCase();
+
+      if (!query) {
+        closePicker();
+        emptyState.hidden = true;
+        options.forEach((option) => {
+          option.parentElement.hidden = true;
+        });
+        return;
+      }
+
+      openPicker();
+      let visibleCount = 0;
+
+      options.forEach((option) => {
+        const matches = String(option.dataset.workerName || "").toLowerCase().includes(query);
+        option.parentElement.hidden = !matches;
+        if (matches) {
+          visibleCount += 1;
+        }
+      });
+
+      emptyState.hidden = visibleCount !== 0;
+
+      const selectedStillVisible = options.some(
+        (option) => option.dataset.workerId === idInput.value && !option.parentElement.hidden
+      );
+
+      if (idInput.value && !selectedStillVisible && query) {
+        idInput.value = "";
+        nameInput.value = "";
+      }
+    };
+
+    searchInput.addEventListener("input", filterOptions);
+    searchInput.addEventListener("focus", () => {
+      if (searchInput.value.trim()) {
+        filterOptions();
+      }
+    });
+
+    options.forEach((option) => {
+      option.addEventListener("click", () => {
+        syncSelection(option);
+        closePicker();
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target !== searchInput && !picker.contains(target)) {
+        closePicker();
+      }
+    });
+
+    if (idInput.value) {
+      const selectedOption = options.find((option) => option.dataset.workerId === idInput.value);
+      if (selectedOption) {
+        syncSelection(selectedOption);
+      }
+    }
+
+    filterOptions();
+  });
 }
 
 if (input && preview && galleryInput && cameraInput && openGalleryButton && openCameraButton) {
