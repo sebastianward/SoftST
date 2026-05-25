@@ -46,7 +46,7 @@
           </div>
         </label>
 
-        <p class="inline-hint">El sistema crea trabajador y cuenta usando el nombre derivado del correo. La clave inicial es <strong><%= defaultWorkerPassword %></strong>.</p>
+        <p class="inline-hint">El sistema crea trabajador y cuenta usando el nombre derivado del correo. La clave inicial es <strong><%= defaultWorkerPassword %></strong>. El admin puede restablecer luego la clave a <strong><%= adminResetPassword %></strong>.</p>
         <button type="submit">Enrolar listado</button>
       </form>
     </div>
@@ -91,7 +91,7 @@
               </label>
               <div class="worker-role-readonly">
                 <span class="worker-role-label">Perfil</span>
-                <span class="comment-indicator has-comment">user</span>
+                <span class="comment-indicator has-comment"><%= worker.linked_role || "user" %></span>
               </div>
               <label class="checkbox-row">
                 <input type="checkbox" name="active" <%= Number(worker.active) === 1 ? "checked" : "" %>>
@@ -100,11 +100,17 @@
               <button type="submit">Guardar cambios</button>
             </form>
 
-            <form action="/workers/<%= worker.id %>/toggle" method="post">
-              <button class="ghost-button" type="submit">
-                <%= Number(worker.active) === 1 ? "Desactivar" : "Activar" %>
-              </button>
-            </form>
+            <div class="worker-card-actions">
+              <form action="/workers/<%= worker.id %>/reset-password" method="post">
+                <button class="ghost-button" type="submit">Restablecer clave</button>
+              </form>
+
+              <form action="/workers/<%= worker.id %>/toggle" method="post">
+                <button class="ghost-button" type="submit">
+                  <%= Number(worker.active) === 1 ? "Desactivar" : "Activar" %>
+                </button>
+              </form>
+            </div>
           </article>
         <% }) %>
       </div>

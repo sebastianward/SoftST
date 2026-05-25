@@ -45,6 +45,7 @@ const upload = multer({
 
 const authCookieName = "softst_auth";
 const defaultWorkerPassword = "Antalis2025";
+const adminResetPassword = "Antalis2026";
 const departmentAreas = ["servicio_tecnico", "grafica"];
 const departmentAreaLabels = {
   servicio_tecnico: "Servicio Tecnico",
@@ -808,6 +809,38 @@ async function bootstrap() {
     req.session.destroy(() => res.redirect("/login"));
   });
 
+  app.post("/account/password", requireAuth, (req, res) => {
+    const currentPassword = String(req.body.currentPassword || "");
+    const nextPassword = String(req.body.newPassword || "");
+    const confirmPassword = String(req.body.confirmPassword || "");
+
+    if (!currentPassword || !nextPassword || !confirmPassword) {
+      setFlash(req, "error", "Completa todos los campos para cambiar la contrasena.");
+      return res.redirect(req.get("referer") || "/");
+    }
+
+    if (nextPassword.length < 8) {
+      setFlash(req, "error", "La nueva contrasena debe tener al menos 8 caracteres.");
+      return res.redirect(req.get("referer") || "/");
+    }
+
+    if (nextPassword !== confirmPassword) {
+      setFlash(req, "error", "La confirmacion de la nueva contrasena no coincide.");
+      return res.redirect(req.get("referer") || "/");
+    }
+
+    const user = db.get("SELECT id, password_hash FROM users WHERE id = ?", [Number(req.session.user.id)]);
+    if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
+      setFlash(req, "error", "La contrasena actual no es correcta.");
+      return res.redirect(req.get("referer") || "/");
+    }
+
+    const nextPasswordHash = bcrypt.hashSync(nextPassword, 10);
+    db.run("UPDATE users SET password_hash = ? WHERE id = ?", [nextPasswordHash, Number(user.id)]);
+    setFlash(req, "success", "Contrasena actualizada correctamente.");
+    return res.redirect(req.get("referer") || "/");
+  });
+
   app.get("/entries/new", requireAuth, (req, res) => {
     const currentArea = getEffectiveArea(req);
     const workers = db.all(
@@ -1178,7 +1211,7 @@ async function bootstrap() {
        ORDER BY w.active DESC, w.name ASC`,
       [currentArea]
     );
-    res.render("workers", { workers, defaultWorkerPassword });
+    res.render("workers", { workers, defaultWorkerPassword, adminResetPassword });
   });
 
   app.post("/workers/enroll", requireAuth, requireAdmin, (req, res) => {
@@ -1265,9 +1298,9 @@ async function bootstrap() {
       if (existingUser) {
         db.run(
           `UPDATE users
-           SET username = ?, email = ?, password_hash = ?, role = ?, area = ?, worker_id = ?, active = ?
+           SET username = ?, email = ?, role = ?, area = ?, worker_id = ?, active = ?
            WHERE id = ?`,
-          [email, email, passwordHash, "user", area, workerId, active, Number(existingUser.id)]
+          [email, email, "user", area, workerId, active, Number(existingUser.id)]
         );
         db.run("UPDATE workers SET user_id = ? WHERE id = ?", [Number(existingUser.id), workerId]);
       } else {
@@ -1307,6 +1340,36 @@ async function bootstrap() {
     }
     setFlash(req, "success", "Estado de trabajador actualizado.");
     return res.redirect("/workers");
+  });
+
+  app.post("/workers/:id/reset-password", requireAuth, requireAdmin, (req, res) => {
+    try {
+      const workerId = Number(req.params.id);
+      const worker = db.get("SELECT id, area, user_id, email, name FROM workers WHERE id = ?", [workerId]);
+
+      if (!worker || normalizeArea(worker.area) !== getEffectiveArea(req)) {
+        setFlash(req, "error", "Trabajador no encontrado.");
+        return res.redirect("/workers");
+      }
+
+      const linkedUser = worker.user_id
+        ? db.get("SELECT id FROM users WHERE id = ?", [Number(worker.user_id)])
+        : db.get("SELECT id FROM users WHERE lower(email) = lower(?)", [String(worker.email || "").trim()]);
+
+      if (!linkedUser) {
+        setFlash(req, "error", "El trabajador no tiene una cuenta vinculada para restablecer.");
+        return res.redirect("/workers");
+      }
+
+      const passwordHash = bcrypt.hashSync(adminResetPassword, 10);
+      db.run("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, Number(linkedUser.id)]);
+
+      setFlash(req, "success", `Contrasena restablecida para ${worker.name}. Nueva clave temporal: ${adminResetPassword}.`);
+      return res.redirect("/workers");
+    } catch (error) {
+      setFlash(req, "error", error.message || "No se pudo restablecer la contrasena.");
+      return res.redirect("/workers");
+    }
   });
 
   app.get("/settings", requireAuth, requireAdmin, (req, res) => {

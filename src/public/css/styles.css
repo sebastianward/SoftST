@@ -430,6 +430,17 @@ table {
   padding-bottom: 0.25rem;
 }
 
+.entries-scrollbar-top {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-bottom: 0.55rem;
+  padding-bottom: 0.15rem;
+}
+
+.entries-scrollbar-top-track {
+  height: 1px;
+}
+
 .entries-table {
   min-width: 1860px;
 }
@@ -682,6 +693,10 @@ table {
   width: min(760px, calc(100% - 2rem));
 }
 
+.password-modal-dialog {
+  width: min(520px, calc(100% - 2rem));
+}
+
 .comment-modal-dialog textarea {
   width: 100%;
   min-height: 260px;
@@ -871,6 +886,11 @@ dd {
 .worker-card-compact .worker-form button,
 .worker-card-compact form[action*="/toggle"] button {
   padding: 0.7rem 1rem;
+}
+
+.worker-card-actions {
+  display: grid;
+  gap: 0.6rem;
 }
 
 .workers-toolbar {
@@ -1146,7 +1166,8 @@ dd {
   }
 
   .notification-card form,
-  .worker-card form[action*="/toggle"] {
+  .worker-card form[action*="/toggle"],
+  .worker-card form[action*="/reset-password"] {
     width: 100%;
   }
 

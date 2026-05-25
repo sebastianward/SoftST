@@ -20,6 +20,9 @@ const textModalTextarea = document.querySelector("#textModalTextarea");
 const textModalSave = document.querySelector("#textModalSave");
 const textModalTriggers = document.querySelectorAll(".comment-modal-trigger, .text-modal-trigger");
 const textModalClosers = document.querySelectorAll("[data-close-text-modal]");
+const passwordModal = document.querySelector("#passwordModal");
+const passwordModalOpeners = document.querySelectorAll("[data-open-password-modal]");
+const passwordModalClosers = document.querySelectorAll("[data-close-password-modal]");
 let activeTextInput = null;
 let activeTextForm = null;
 const workerSearchField = document.querySelector("#workerSearchField");
@@ -31,6 +34,10 @@ const workerNameInput = document.querySelector("#workerName");
 const workerOptions = workerPickerList ? Array.from(workerPickerList.querySelectorAll(".worker-picker-option")) : [];
 const entriesVisibilityForm = document.querySelector(".entries-visibility-form");
 const visibilityCheckboxes = document.querySelectorAll(".entries-visibility-form input[type='checkbox']");
+const entriesTable = document.querySelector("#entriesTable");
+const entriesTableWrap = document.querySelector(".entries-table-wrap");
+const entriesScrollbarTop = document.querySelector("[data-entries-scrollbar-top]");
+const entriesScrollbarTopTrack = document.querySelector("[data-entries-scrollbar-top-track]");
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -90,6 +97,40 @@ if (entriesVisibilityForm && visibilityCheckboxes.length > 0) {
       syncEntriesVisibility();
     });
   });
+}
+
+if (entriesTable && entriesTableWrap && entriesScrollbarTop && entriesScrollbarTopTrack) {
+  let syncingTopScroll = false;
+  let syncingBottomScroll = false;
+
+  const syncEntriesScrollWidth = () => {
+    entriesScrollbarTopTrack.style.width = `${entriesTable.scrollWidth}px`;
+    entriesScrollbarTop.hidden = entriesTable.scrollWidth <= entriesTableWrap.clientWidth;
+  };
+
+  entriesScrollbarTop.addEventListener("scroll", () => {
+    if (syncingBottomScroll) {
+      syncingBottomScroll = false;
+      return;
+    }
+
+    syncingTopScroll = true;
+    entriesTableWrap.scrollLeft = entriesScrollbarTop.scrollLeft;
+  });
+
+  entriesTableWrap.addEventListener("scroll", () => {
+    if (syncingTopScroll) {
+      syncingTopScroll = false;
+      return;
+    }
+
+    syncingBottomScroll = true;
+    entriesScrollbarTop.scrollLeft = entriesTableWrap.scrollLeft;
+  });
+
+  window.addEventListener("resize", syncEntriesScrollWidth);
+  syncEntriesScrollWidth();
+  entriesScrollbarTop.scrollLeft = entriesTableWrap.scrollLeft;
 }
 
 if (imageModal && imageModalGrid && imageModalTriggers.length > 0) {
@@ -185,6 +226,29 @@ if (textModal && textModalTextarea && textModalTriggers.length > 0) {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !textModal.hidden) {
       closeTextModal();
+    }
+  });
+}
+
+if (passwordModal && passwordModalOpeners.length > 0) {
+  const closePasswordModal = () => {
+    passwordModal.hidden = true;
+  };
+
+  passwordModalOpeners.forEach((button) => {
+    button.addEventListener("click", () => {
+      passwordModal.hidden = false;
+      passwordModal.querySelector("input[name='currentPassword']")?.focus();
+    });
+  });
+
+  passwordModalClosers.forEach((button) => {
+    button.addEventListener("click", closePasswordModal);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !passwordModal.hidden) {
+      closePasswordModal();
     }
   });
 }

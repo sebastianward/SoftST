@@ -38,6 +38,7 @@
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar tema">
         <span data-theme-label>Modo claro</span>
       </button>
+      <button class="ghost-button" type="button" data-open-password-modal>Cambiar clave</button>
       <span class="user-chip">
         <%= currentUser.email || currentUser.username %> | <%= currentUser.role %>
         <% if (currentUser.role !== "admin") { %> | <%= currentAreaLabel %><% } %>
@@ -51,4 +52,32 @@
 
 <% if (flash) { %>
   <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+<% } %>
+
+<% if (currentUser) { %>
+  <div class="image-modal" id="passwordModal" hidden>
+    <div class="image-modal-backdrop" data-close-password-modal></div>
+    <div class="image-modal-dialog password-modal-dialog">
+      <button type="button" class="image-modal-close" data-close-password-modal>Cerrar</button>
+      <h2>Cambiar contrasena</h2>
+      <form action="/account/password" method="post" class="stack-form">
+        <label>
+          Contrasena actual
+          <input type="password" name="currentPassword" autocomplete="current-password" required>
+        </label>
+        <label>
+          Nueva contrasena
+          <input type="password" name="newPassword" autocomplete="new-password" minlength="8" required>
+        </label>
+        <label>
+          Repite la nueva contrasena
+          <input type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required>
+        </label>
+        <div class="comment-modal-actions">
+          <button type="button" class="ghost-button" data-close-password-modal>Cancelar</button>
+          <button type="submit">Guardar nueva clave</button>
+        </div>
+      </form>
+    </div>
+  </div>
 <% } %>

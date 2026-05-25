@@ -30,6 +30,9 @@
     <% if (entries.length === 0) { %>
       <p class="empty-state">No hay registros todavia.</p>
     <% } else { %>
+      <div class="entries-scrollbar-top" data-entries-scrollbar-top aria-hidden="true">
+        <div class="entries-scrollbar-top-track" data-entries-scrollbar-top-track></div>
+      </div>
       <div class="table-wrap entries-table-wrap">
         <table class="entries-table" id="entriesTable">
           <thead>
