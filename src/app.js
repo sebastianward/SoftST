@@ -1882,7 +1882,12 @@ async function bootstrap() {
        ORDER BY w.active DESC, w.name ASC`,
       [currentArea]
     );
-    res.render("workers", { workers, defaultWorkerPassword, adminResetPassword });
+    res.render("workers", {
+      workers,
+      defaultWorkerPassword,
+      adminResetPassword,
+      editableWorkerRoles: ["user", "operator"],
+    });
   });
 
   app.post("/workers/enroll", requireAuth, requireAdmin, (req, res) => {
@@ -1941,6 +1946,8 @@ async function bootstrap() {
       const email = String(req.body.email || "").trim().toLowerCase();
       const area = normalizeArea(req.body.area || getEffectiveArea(req));
       const active = req.body.active === "on" ? 1 : 0;
+      const requestedRole = String(req.body.role || "user").trim().toLowerCase();
+      const normalizedRole = requestedRole === "operator" ? "operator" : "user";
       const worker = db.get("SELECT * FROM workers WHERE id = ?", [workerId]);
 
       if (!worker || normalizeArea(worker.area) !== getEffectiveArea(req)) {
@@ -1967,18 +1974,21 @@ async function bootstrap() {
       ]);
 
       if (existingUser) {
+        const currentUser = db.get("SELECT role FROM users WHERE id = ?", [Number(existingUser.id)]);
+        const nextRole = currentUser?.role === "admin" ? "admin" : normalizedRole;
+        const nextArea = nextRole === "admin" ? null : area;
         db.run(
           `UPDATE users
            SET username = ?, email = ?, role = ?, area = ?, worker_id = ?, active = ?
            WHERE id = ?`,
-          [email, email, "user", area, workerId, active, Number(existingUser.id)]
+          [email, email, nextRole, nextArea, workerId, active, Number(existingUser.id)]
         );
         db.run("UPDATE workers SET user_id = ? WHERE id = ?", [Number(existingUser.id), workerId]);
       } else {
         db.run(
           `INSERT INTO users (username, email, password_hash, role, area, worker_id, active)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [email, email, passwordHash, "user", area, workerId, active]
+          [email, email, passwordHash, normalizedRole, area, workerId, active]
         );
         const newUser = db.get("SELECT id FROM users ORDER BY id DESC LIMIT 1");
         db.run("UPDATE workers SET user_id = ? WHERE id = ?", [Number(newUser.id), workerId]);

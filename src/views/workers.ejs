@@ -89,10 +89,21 @@
                   <% }) %>
                 </select>
               </label>
-              <div class="worker-role-readonly">
-                <span class="worker-role-label">Perfil</span>
-                <span class="comment-indicator has-comment"><%= worker.linked_role || "user" %></span>
-              </div>
+              <% if ((worker.linked_role || "user") === "admin") { %>
+                <div class="worker-role-readonly">
+                  <span class="worker-role-label">Perfil</span>
+                  <span class="comment-indicator has-comment">admin</span>
+                </div>
+              <% } else { %>
+                <label>
+                  Perfil
+                  <select name="role">
+                    <% editableWorkerRoles.forEach((roleOption) => { %>
+                      <option value="<%= roleOption %>" <%= (worker.linked_role || "user") === roleOption ? "selected" : "" %>><%= roleOption %></option>
+                    <% }) %>
+                  </select>
+                </label>
+              <% } %>
               <label class="checkbox-row">
                 <input type="checkbox" name="active" <%= Number(worker.active) === 1 ? "checked" : "" %>>
                 Activo
