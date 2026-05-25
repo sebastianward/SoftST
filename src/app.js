@@ -26,6 +26,7 @@ const db = new DatabaseService({
   dbPath: path.join(dataDir, "app.sqlite"),
 });
 let printWorkerRunning = false;
+const assetVersion = process.env.ASSET_VERSION || String(Date.now());
 
 const storage = multer.diskStorage({
   destination: (_req, _file, callback) => callback(null, uploadDir),
@@ -721,6 +722,7 @@ async function bootstrap() {
     res.locals.currentAreaLabel = getAreaLabel(currentArea);
     res.locals.notificationCount = Number(notificationCount || 0);
     res.locals.flash = getFlash(req);
+    res.locals.assetVersion = assetVersion;
     next();
   });
 
