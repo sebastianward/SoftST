@@ -13,6 +13,8 @@ const { sendCreatedEntryEmail } = require("./services/mail");
 
 dotenv.config();
 
+process.env.TZ = process.env.APP_TIMEZONE || process.env.TZ || "America/Santiago";
+const appTimeZone = process.env.TZ;
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const rootDir = path.resolve(__dirname, "..");
@@ -273,6 +275,8 @@ function normalizeEntry(row) {
   return {
     ...row,
     images: JSON.parse(row.image_paths || "[]"),
+    created_at: formatUtcSqliteDateTimeForDisplay(row.created_at),
+    deleted_at: row.deleted_at ? formatUtcSqliteDateTimeForDisplay(row.deleted_at) : null,
   };
 }
 
@@ -286,6 +290,29 @@ function parseSqliteDate(value) {
 
 function toSqliteDate(value) {
   return value.toISOString().slice(0, 19).replace("T", " ");
+}
+
+function formatDateTimeInTimeZone(value, timeZone = appTimeZone) {
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  return formatter.format(value).replace(",", "");
+}
+
+function formatUtcSqliteDateTimeForDisplay(value) {
+  if (!value) {
+    return "";
+  }
+
+  return formatDateTimeInTimeZone(parseSqliteDate(value), appTimeZone);
 }
 
 function toPositiveInteger(value, fallback) {
@@ -1635,6 +1662,7 @@ async function bootstrap() {
 
     sendCreatedEntryEmail({
       ...newEntry,
+      created_at: formatUtcSqliteDateTimeForDisplay(newEntry.created_at),
       entry_status_label: getEntryStatusLabel(newEntry.entry_status),
       image_count: JSON.parse(newEntry.image_paths || "[]").length,
       attachments: JSON.parse(newEntry.image_paths || "[]").map((imagePath) =>
@@ -2116,7 +2144,14 @@ async function bootstrap() {
        ORDER BY n.read_at IS NOT NULL ASC, datetime(n.due_at) DESC, n.id DESC`
       ,
       [currentArea]
-    );
+    ).map((notification) => ({
+      ...notification,
+      due_at: formatUtcSqliteDateTimeForDisplay(notification.due_at),
+      read_at: notification.read_at ? formatUtcSqliteDateTimeForDisplay(notification.read_at) : null,
+      created_at: notification.created_at
+        ? formatUtcSqliteDateTimeForDisplay(notification.created_at)
+        : null,
+    }));
 
     res.render("notifications", { notifications });
   });
