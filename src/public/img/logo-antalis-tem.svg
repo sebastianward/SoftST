@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Antalis TEM</title>
+  <desc id="desc">Logo Antalis con distintivo TEM sobre fondo azul oscuro.</desc>
+  <rect width="512" height="512" fill="#0b0646"/>
+  <text
+    x="56"
+    y="272"
+    fill="#f8f6f1"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="96"
+    font-weight="300"
+    letter-spacing="-4"
+  >antalis</text>
+  <circle cx="403" cy="208" r="48" fill="#ec0b89"/>
+  <text
+    x="403"
+    y="222"
+    fill="#ffffff"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="34"
+    font-weight="700"
+    text-anchor="middle"
+  >TEM</text>
+</svg>
