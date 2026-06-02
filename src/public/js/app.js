@@ -10,7 +10,8 @@ const workerSearch = document.querySelector("#workerSearch");
 const workerCards = document.querySelectorAll("[data-worker-name]");
 const entrySearch = document.querySelector("#entrySearch");
 const entryRows = document.querySelectorAll("[data-entry-row]");
-const vehicleHistorySearch = document.querySelector("#vehicleHistorySearch");
+const vehicleHistoryDate = document.querySelector("#vehicleHistoryDate");
+const vehicleHistoryDateClear = document.querySelector("#vehicleHistoryDateClear");
 const vehicleHistoryRows = document.querySelectorAll("[data-vehicle-history-row]");
 const imageModal = document.querySelector("#imageModal");
 const imageModalGrid = document.querySelector("#imageModalGrid");
@@ -83,14 +84,19 @@ if (entrySearch && entryRows.length > 0) {
   });
 }
 
-if (vehicleHistorySearch && vehicleHistoryRows.length > 0) {
-  vehicleHistorySearch.addEventListener("input", () => {
-    const query = vehicleHistorySearch.value.trim().toLowerCase();
-
+if (vehicleHistoryDate && vehicleHistoryRows.length > 0) {
+  const syncVehicleHistoryDate = () => {
+    const selectedDate = vehicleHistoryDate.value;
     vehicleHistoryRows.forEach((row) => {
-      const searchable = row.dataset.search || "";
-      row.style.display = searchable.includes(query) ? "" : "none";
+      const rowDate = row.dataset.date || "";
+      row.style.display = !selectedDate || rowDate === selectedDate ? "" : "none";
     });
+  };
+
+  vehicleHistoryDate.addEventListener("input", syncVehicleHistoryDate);
+  vehicleHistoryDateClear?.addEventListener("click", () => {
+    vehicleHistoryDate.value = "";
+    syncVehicleHistoryDate();
   });
 }
 

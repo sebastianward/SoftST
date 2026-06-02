@@ -540,7 +540,7 @@ function getPublicPendingEntries() {
      JOIN users u ON u.id = e.created_by_user_id
      WHERE e.area = 'servicio_tecnico'
        AND e.deleted_at IS NULL
-       AND e.entry_status = 'no_asignado'
+       AND e.entry_status != 'finalizado'
      ORDER BY e.id DESC`
   ).map(normalizeEntry);
 }

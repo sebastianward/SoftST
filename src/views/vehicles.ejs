@@ -160,8 +160,9 @@
       <% } else { %>
         <div class="workers-toolbar vehicles-history-toolbar">
           <label class="workers-search">
-            <input type="search" id="vehicleHistorySearch" placeholder="Buscar en historial por fecha o detalle">
+            <input type="date" id="vehicleHistoryDate">
           </label>
+          <button type="button" class="ghost-button" id="vehicleHistoryDateClear">Limpiar fecha</button>
         </div>
         <div class="table-wrap">
           <table class="vehicles-history-table">
@@ -178,7 +179,7 @@
             </thead>
             <tbody>
               <% historyRows.forEach((row) => { %>
-                <tr data-vehicle-history-row data-search="<%= [row.created_at, row.actor_username_snapshot, row.event_label, row.vehicle_name_snapshot, row.worker_name_snapshot, row.shift_key, row.details].filter(Boolean).join(' ').toLowerCase() %>">
+                <tr data-vehicle-history-row data-date="<%= String(row.created_at || '').slice(0, 10) %>">
                   <td><%= row.created_at %></td>
                   <td><%= row.actor_username_snapshot || "Sistema" %></td>
                   <td><strong><%= row.event_label %></strong></td>
