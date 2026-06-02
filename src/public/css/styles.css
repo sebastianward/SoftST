@@ -1033,6 +1033,10 @@ dd {
   margin: 0.75rem 0 1rem;
 }
 
+.vehicles-history-toolbar {
+  margin-bottom: 0.75rem;
+}
+
 .vehicles-table,
 .vehicles-history-table {
   min-width: 1120px;

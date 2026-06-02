@@ -93,7 +93,7 @@ function buildRawMimeMessage({ from, to, subject, text, html, attachments = [] }
   const mixedBoundary = `softst-mixed-${Date.now()}`;
   const alternativeBoundary = `softst-alt-${Date.now()}`;
   return [
-    `From: Registro Ingresos Antalis Abitek <${from}>`,
+    `From: Registro Ingresos Antalis <${from}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
@@ -153,7 +153,7 @@ function buildCreatedEntryEmail(entry) {
   ];
 
   const text = [
-    "[DEBUG] Correo de prueba de Registro Ingresos Antalis Abitek.",
+    "[DEBUG] Correo de prueba de Registro Ingresos Antalis.",
     "",
     `Se ha registrado un nuevo ingreso #${entry.id}.`,
     "",
@@ -166,7 +166,7 @@ function buildCreatedEntryEmail(entry) {
         DEBUG: correo de prueba
       </p>
       <h2 style="margin-bottom: 12px;">Nuevo ingreso registrado #${escapeHtml(entry.id)}</h2>
-      <p style="margin-top: 0;">Resumen del formulario ingresado en Registro Ingresos Antalis Abitek.</p>
+      <p style="margin-top: 0;">Resumen del formulario ingresado en Registro Ingresos Antalis.</p>
       <table style="border-collapse: collapse; width: 100%; max-width: 760px;">
         <tbody>
           ${rows
@@ -206,7 +206,7 @@ function buildCreatedEntryEmail(entry) {
             ? `<div style="margin-bottom: 18px;"><img src="cid:${entry.banner_cid}" alt="Banner servicio tecnico" style="max-width: 100%; border-radius: 18px;"></div>`
             : ""
         }
-        <div style="font-size: 40px; font-weight: 800; color: #22164b; margin-bottom: 10px;">Servicio Tecnico</div>
+        <div style="font-size: 40px; font-weight: 800; color: #22164b; margin-bottom: 10px;">Packaging</div>
         <div style="font-size: 18px; line-height: 1.6;">
           <div>servicio.tecnico@antalis.com</div>
           <div>+56 2 24855070</div>
@@ -216,7 +216,7 @@ function buildCreatedEntryEmail(entry) {
   `.trim();
 
   return {
-    subject: `[DEBUG] Registro Ingresos Antalis Abitek: registro creado ingreso #${entry.id}`,
+    subject: `[DEBUG] Registro Ingresos Antalis: registro creado ingreso #${entry.id}`,
     text,
     html,
   };

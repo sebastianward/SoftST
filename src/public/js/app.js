@@ -10,6 +10,8 @@ const workerSearch = document.querySelector("#workerSearch");
 const workerCards = document.querySelectorAll("[data-worker-name]");
 const entrySearch = document.querySelector("#entrySearch");
 const entryRows = document.querySelectorAll("[data-entry-row]");
+const vehicleHistorySearch = document.querySelector("#vehicleHistorySearch");
+const vehicleHistoryRows = document.querySelectorAll("[data-vehicle-history-row]");
 const imageModal = document.querySelector("#imageModal");
 const imageModalGrid = document.querySelector("#imageModalGrid");
 const imageModalTriggers = document.querySelectorAll(".image-modal-trigger");
@@ -75,6 +77,17 @@ if (entrySearch && entryRows.length > 0) {
     const query = entrySearch.value.trim().toLowerCase();
 
     entryRows.forEach((row) => {
+      const searchable = row.dataset.search || "";
+      row.style.display = searchable.includes(query) ? "" : "none";
+    });
+  });
+}
+
+if (vehicleHistorySearch && vehicleHistoryRows.length > 0) {
+  vehicleHistorySearch.addEventListener("input", () => {
+    const query = vehicleHistorySearch.value.trim().toLowerCase();
+
+    vehicleHistoryRows.forEach((row) => {
       const searchable = row.dataset.search || "";
       row.style.display = searchable.includes(query) ? "" : "none";
     });

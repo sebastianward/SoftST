@@ -5,7 +5,7 @@
   <section class="panel">
     <div class="panel-title panel-title-workers">
       <div>
-        <h1>Camionetas | Servicio Tecnico</h1>
+        <h1>Camionetas | Packaging</h1>
         <span>Turno activo desde <%= currentShiftKey %>. Cada trabajador puede quedar en una sola camioneta.</span>
       </div>
       <div class="vehicles-summary">
@@ -158,6 +158,11 @@
       <% if (historyRows.length === 0) { %>
         <p class="empty-state">Todavia no hay movimientos registrados.</p>
       <% } else { %>
+        <div class="workers-toolbar vehicles-history-toolbar">
+          <label class="workers-search">
+            <input type="search" id="vehicleHistorySearch" placeholder="Buscar en historial por fecha o detalle">
+          </label>
+        </div>
         <div class="table-wrap">
           <table class="vehicles-history-table">
             <thead>
@@ -173,7 +178,7 @@
             </thead>
             <tbody>
               <% historyRows.forEach((row) => { %>
-                <tr>
+                <tr data-vehicle-history-row data-search="<%= [row.created_at, row.actor_username_snapshot, row.event_label, row.vehicle_name_snapshot, row.worker_name_snapshot, row.shift_key, row.details].filter(Boolean).join(' ').toLowerCase() %>">
                   <td><%= row.created_at %></td>
                   <td><%= row.actor_username_snapshot || "Sistema" %></td>
                   <td><strong><%= row.event_label %></strong></td>

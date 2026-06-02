@@ -51,7 +51,7 @@ const defaultWorkerPassword = "Antalis2025";
 const adminResetPassword = "Antalis2026";
 const departmentAreas = ["servicio_tecnico", "grafica"];
 const departmentAreaLabels = {
-  servicio_tecnico: "Servicio Tecnico",
+  servicio_tecnico: "Packaging",
   grafica: "Grafica",
 };
 const entryStatuses = [
@@ -92,7 +92,7 @@ const appSettingsDefaults = {
   vehicle_reset_time: "06:00",
   vehicle_last_reset_shift_key: "",
   mail_info_text:
-    "El plazo de diagnostico es de 5 a 7 dias habiles.\nEn caso de que el presupuesto no sea aprobado o caduque por vencimiento, el cliente acepta el cobro de UF 2 por diagnostico.\nLuego de 60 dias de permanencia del equipo por falta de autorizacion o retiro, Antalis Abitek podra gestionar su disposicion informando previamente por correo.",
+    "El plazo de diagnostico es de 5 a 7 dias habiles.\nEn caso de que el presupuesto no sea aprobado o caduque por vencimiento, el cliente acepta el cobro de UF 2 por diagnostico.\nLuego de 60 dias de permanencia del equipo por falta de autorizacion o retiro, Antalis podra gestionar su disposicion informando previamente por correo.",
   mail_banner_path: "",
 };
 
@@ -528,9 +528,21 @@ function ensureVehicleAccess(req, res) {
     return true;
   }
 
-  setFlash(req, "error", "El modulo Camionetas solo esta disponible para Servicio Tecnico.");
+  setFlash(req, "error", "El modulo Camionetas solo esta disponible para Packaging.");
   res.redirect("/");
   return false;
+}
+
+function getPublicPendingEntries() {
+  return db.all(
+    `SELECT e.*, u.username AS created_by_username
+     FROM entries e
+     JOIN users u ON u.id = e.created_by_user_id
+     WHERE e.area = 'servicio_tecnico'
+       AND e.deleted_at IS NULL
+       AND e.entry_status = 'no_asignado'
+     ORDER BY e.id DESC`
+  ).map(normalizeEntry);
 }
 
 function getVehicleOrderClause() {
@@ -1211,6 +1223,15 @@ async function bootstrap() {
     }
 
     return res.render("login");
+  });
+
+  app.get("/pendientes", (_req, res) => {
+    const entries = getPublicPendingEntries();
+    return res.render("public-pending", {
+      entries,
+      entryStatuses,
+      publicAreaLabel: getAreaLabel("servicio_tecnico"),
+    });
   });
 
   app.post("/login", (req, res) => {
@@ -2167,7 +2188,7 @@ async function bootstrap() {
   });
 
   app.listen(port, () => {
-    console.log(`Registro Ingresos Antalis Abitek disponible en http://localhost:${port}`);
+    console.log(`Registro Ingresos Antalis disponible en http://localhost:${port}`);
   });
 }
 

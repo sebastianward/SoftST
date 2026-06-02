@@ -7,7 +7,7 @@ const ENTRY_ZPL_TEMPLATE = [
   "^PW800",
   "^LL400",
   "^LH0,0",
-  "^FO80,76^A0N,24,24^FDRegistro Ingresos Antalis Abitek^FS",
+  "^FO80,76^A0N,24,24^FDRegistro Ingresos Antalis^FS",
   "^FO80,106^A0N,20,20^FDIngreso #@entry_id^FS",
   "^FO530,106^A0N,18,18^FD@created_at^FS",
   "^FO80,132^GB640,2,2^FS",
