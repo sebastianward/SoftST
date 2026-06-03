@@ -1641,10 +1641,10 @@ async function bootstrap() {
       `INSERT INTO entries (
         business_name, rut, contact_name, contact_email, contact_phone, ownership,
         branch_office, equipment_model, serial_number, client_report,
-        details_accessories, entry_status, sap_code, comment, final_task, quotation, purchase_order, area,
+        details_accessories, entry_status, sap_code, comment, diagnostic_task, final_task, quotation, purchase_order, area,
         worker_id, worker_name_snapshot, image_paths,
         notification_read, created_by_user_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'no_asignado', '', '', '', '', '', ?, ?, ?, ?, 0, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'no_asignado', '', '', '', '', '', '', ?, ?, ?, ?, 0, ?)`,
       [
         formData.businessName,
         formData.rut,
@@ -1775,6 +1775,7 @@ async function bootstrap() {
         entryStatus: req.body.entryStatus,
         sapCode: req.body.sapCode?.trim() || "",
         comment: req.body.comment?.trim() || "",
+        diagnosticTask: req.body.diagnosticTask?.trim() || "",
         finalTask: req.body.finalTask?.trim() || "",
         quotation: req.body.quotation?.trim() || "",
         purchaseOrder: req.body.purchaseOrder?.trim() || "",
@@ -1807,7 +1808,7 @@ async function bootstrap() {
         `UPDATE entries SET
           business_name = ?, rut = ?, contact_name = ?, contact_email = ?, contact_phone = ?,
           ownership = ?, branch_office = ?, equipment_model = ?, serial_number = ?, client_report = ?,
-          details_accessories = ?, entry_status = ?, sap_code = ?, comment = ?, final_task = ?,
+          details_accessories = ?, entry_status = ?, sap_code = ?, comment = ?, diagnostic_task = ?, final_task = ?,
           quotation = ?, purchase_order = ?, area = ?, worker_id = ?, worker_name_snapshot = ?
          WHERE id = ?`,
         [
@@ -1825,6 +1826,7 @@ async function bootstrap() {
           formData.entryStatus,
           formData.sapCode,
           formData.comment,
+          formData.diagnosticTask,
           formData.finalTask,
           formData.quotation,
           formData.purchaseOrder,
@@ -1837,12 +1839,13 @@ async function bootstrap() {
     } else {
       db.run(
         `UPDATE entries SET
-          entry_status = ?, sap_code = ?, comment = ?, final_task = ?, quotation = ?, purchase_order = ?
+          entry_status = ?, sap_code = ?, comment = ?, diagnostic_task = ?, final_task = ?, quotation = ?, purchase_order = ?
          WHERE id = ?`,
         [
           req.body.entryStatus,
           req.body.sapCode?.trim() || "",
           req.body.comment?.trim() || "",
+          req.body.diagnosticTask?.trim() || "",
           req.body.finalTask?.trim() || "",
           req.body.quotation?.trim() || "",
           req.body.purchaseOrder?.trim() || "",

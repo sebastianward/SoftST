@@ -52,6 +52,7 @@
               <th>Creado por</th>
               <th>SAP</th>
               <th>Comentario</th>
+              <th>Tarea diagnostico</th>
               <th>Tarea final</th>
               <th>Cotizacion</th>
               <th>OC</th>
@@ -82,6 +83,7 @@
                 entry.created_by_username,
                 entry.sap_code,
                 entry.comment,
+                entry.diagnostic_task,
                 entry.final_task,
                 entry.quotation,
                 entry.purchase_order,
@@ -152,6 +154,7 @@
                       </button>
                       <input type="hidden" name="comment" form="entry-form-<%= entry.id %>" value="<%= entry.comment || "" %>">
                     </td>
+                    <td><% if (!entry.deleted_at) { %><input type="text" name="diagnosticTask" form="entry-form-<%= entry.id %>" value="<%= entry.diagnostic_task || "" %>"><% } else { %><span class="table-static"><%= entry.diagnostic_task || "-" %></span><% } %></td>
                     <td><% if (!entry.deleted_at) { %><input type="text" name="finalTask" form="entry-form-<%= entry.id %>" value="<%= entry.final_task || "" %>"><% } else { %><span class="table-static"><%= entry.final_task || "-" %></span><% } %></td>
                     <td><% if (!entry.deleted_at) { %><input type="text" name="quotation" form="entry-form-<%= entry.id %>" value="<%= entry.quotation || "" %>"><% } else { %><span class="table-static"><%= entry.quotation || "-" %></span><% } %></td>
                     <td><% if (!entry.deleted_at) { %><input type="text" name="purchaseOrder" form="entry-form-<%= entry.id %>" value="<%= entry.purchase_order || "" %>"><% } else { %><span class="table-static"><%= entry.purchase_order || "-" %></span><% } %></td>
@@ -294,6 +297,7 @@
                       </div>
                     <% } %>
                   </td>
+                  <td><%= entry.diagnostic_task || "-" %></td>
                   <td><%= entry.final_task || "-" %></td>
                   <td><%= entry.quotation || "-" %></td>
                   <td><%= entry.purchase_order || "-" %></td>

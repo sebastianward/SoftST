@@ -72,6 +72,7 @@ class DatabaseService {
         entry_status TEXT NOT NULL DEFAULT 'no_asignado',
         sap_code TEXT,
         comment TEXT,
+        diagnostic_task TEXT,
         final_task TEXT,
         quotation TEXT,
         purchase_order TEXT,
@@ -186,6 +187,7 @@ class DatabaseService {
     this.ensureColumn("entries", "entry_status", "TEXT NOT NULL DEFAULT 'no_asignado'");
     this.ensureColumn("entries", "sap_code", "TEXT");
     this.ensureColumn("entries", "comment", "TEXT");
+    this.ensureColumn("entries", "diagnostic_task", "TEXT");
     this.ensureColumn("entries", "final_task", "TEXT");
     this.ensureColumn("entries", "quotation", "TEXT");
     this.ensureColumn("entries", "purchase_order", "TEXT");
