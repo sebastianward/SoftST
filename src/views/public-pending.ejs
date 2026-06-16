@@ -1,7 +1,7 @@
 <%- include("partials/head", { title: "Pendientes" }) %>
 
-<main class="page-shell">
-  <section class="panel">
+<main class="page-shell public-pending-shell">
+  <section class="panel public-pending-panel">
     <div class="panel-title">
       <div>
         <h1>Pendientes | <%= publicAreaLabel %></h1>
@@ -22,19 +22,19 @@
       <div class="entries-scrollbar-top" data-entries-scrollbar-top aria-hidden="true">
         <div class="entries-scrollbar-top-track" data-entries-scrollbar-top-track></div>
       </div>
-      <div class="table-wrap entries-table-wrap">
-        <table class="entries-table" id="entriesTable">
+      <div class="table-wrap entries-table-wrap public-pending-table-wrap">
+        <table class="entries-table public-pending-table" id="entriesTable">
           <thead>
             <tr>
               <th>ID</th>
               <th>Estado</th>
+              <th>Fecha</th>
               <th>Empresa</th>
               <th>RUT</th>
               <th>Contacto</th>
               <th>Equipo</th>
               <th>Ingresado por</th>
               <th>Creado por</th>
-              <th>Fecha</th>
             </tr>
           </thead>
           <tbody>
@@ -53,13 +53,13 @@
               <tr data-entry-row data-search="<%= searchable %>">
                 <td>#<%= entry.id %></td>
                 <td><span class="status-pill"><%= entryStatuses.find((status) => status.value === entry.entry_status)?.label || entry.entry_status %></span></td>
+                <td><%= entry.created_at %></td>
                 <td><%= entry.business_name %></td>
                 <td><%= entry.rut %></td>
                 <td><%= entry.contact_name %></td>
                 <td><%= entry.equipment_model %></td>
                 <td><%= entry.worker_name_snapshot %></td>
                 <td><%= entry.created_by_username %></td>
-                <td><%= entry.created_at %></td>
               </tr>
             <% }) %>
           </tbody>

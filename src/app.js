@@ -56,6 +56,7 @@ const departmentAreaLabels = {
 };
 const entryStatuses = [
   { value: "diagnostico_pendiente", label: "Diagnostico pendiente" },
+  { value: "pendiente_cotizacion", label: "Pendiente de cotizacion" },
   { value: "no_asignado", label: "No asignado" },
   { value: "espera_oc", label: "Espera de OC" },
   { value: "finalizado", label: "Finalizado" },

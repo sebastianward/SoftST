@@ -9,7 +9,9 @@ const themeLabels = document.querySelectorAll("[data-theme-label]");
 const workerSearch = document.querySelector("#workerSearch");
 const workerCards = document.querySelectorAll("[data-worker-name]");
 const entrySearch = document.querySelector("#entrySearch");
+const entryStatusFilter = document.querySelector("#entryStatusFilter");
 const entryRows = document.querySelectorAll("[data-entry-row]");
+const entrySortButtons = document.querySelectorAll(".table-sort-button");
 const vehicleHistoryDate = document.querySelector("#vehicleHistoryDate");
 const vehicleHistoryDateClear = document.querySelector("#vehicleHistoryDateClear");
 const vehicleHistoryRows = document.querySelectorAll("[data-vehicle-history-row]");
@@ -42,6 +44,7 @@ const entriesTable = document.querySelector("#entriesTable");
 const entriesTableWrap = document.querySelector(".entries-table-wrap");
 const entriesScrollbarTop = document.querySelector("[data-entries-scrollbar-top]");
 const entriesScrollbarTopTrack = document.querySelector("[data-entries-scrollbar-top-track]");
+let activeEntrySort = { key: "id", direction: "desc" };
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -73,15 +76,103 @@ if (workerSearch && workerCards.length > 0) {
   });
 }
 
-if (entrySearch && entryRows.length > 0) {
-  entrySearch.addEventListener("input", () => {
-    const query = entrySearch.value.trim().toLowerCase();
+function getEntrySortValue(row, key) {
+  if (!row) {
+    return "";
+  }
 
-    entryRows.forEach((row) => {
-      const searchable = row.dataset.search || "";
-      row.style.display = searchable.includes(query) ? "" : "none";
+  if (key === "entry_status") {
+    const statusSelect = row.querySelector('select[name="entryStatus"]');
+    if (statusSelect) {
+      return String(statusSelect.value || "").toLowerCase();
+    }
+  }
+
+  return String(row.dataset[`sort${key.charAt(0).toUpperCase()}${key.slice(1)}`] || "").toLowerCase();
+}
+
+function compareEntryRows(leftRow, rightRow, key, direction) {
+  const leftValue = getEntrySortValue(leftRow, key);
+  const rightValue = getEntrySortValue(rightRow, key);
+  const isNumeric = ["id", "image_count"].includes(key);
+  const leftComparable = isNumeric ? Number(leftValue || 0) : leftValue;
+  const rightComparable = isNumeric ? Number(rightValue || 0) : rightValue;
+
+  if (leftComparable < rightComparable) {
+    return direction === "asc" ? -1 : 1;
+  }
+
+  if (leftComparable > rightComparable) {
+    return direction === "asc" ? 1 : -1;
+  }
+
+  return 0;
+}
+
+function sortEntryRows() {
+  if (!entriesTable) {
+    return;
+  }
+
+  const tableBody = entriesTable.tBodies[0];
+  if (!tableBody) {
+    return;
+  }
+
+  const rows = Array.from(tableBody.querySelectorAll("[data-entry-row]"));
+  rows
+    .sort((leftRow, rightRow) =>
+      compareEntryRows(leftRow, rightRow, activeEntrySort.key, activeEntrySort.direction)
+    )
+    .forEach((row) => tableBody.appendChild(row));
+
+  entrySortButtons.forEach((button) => {
+    const isActive = button.dataset.sortKey === activeEntrySort.key;
+    button.dataset.sortDirection = isActive ? activeEntrySort.direction : "";
+  });
+}
+
+function applyEntryFilters() {
+  if (entryRows.length === 0) {
+    return;
+  }
+
+  const query = entrySearch?.value.trim().toLowerCase() || "";
+  const selectedStatus = entryStatusFilter?.value || "all";
+
+  entryRows.forEach((row) => {
+    const searchable = row.dataset.search || "";
+    const statusValue = getEntrySortValue(row, "entry_status");
+    const matchesSearch = !query || searchable.includes(query);
+    const matchesStatus = selectedStatus === "all" || statusValue === selectedStatus;
+    row.style.display = matchesSearch && matchesStatus ? "" : "none";
+  });
+}
+
+if (entryRows.length > 0) {
+  entrySearch?.addEventListener("input", applyEntryFilters);
+  entryStatusFilter?.addEventListener("change", applyEntryFilters);
+
+  entrySortButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextKey = button.dataset.sortKey || "id";
+
+      if (activeEntrySort.key === nextKey) {
+        activeEntrySort.direction = activeEntrySort.direction === "asc" ? "desc" : "asc";
+      } else {
+        activeEntrySort = {
+          key: nextKey,
+          direction: nextKey === "id" || nextKey === "created_at" ? "desc" : "asc",
+        };
+      }
+
+      sortEntryRows();
+      applyEntryFilters();
     });
   });
+
+  sortEntryRows();
+  applyEntryFilters();
 }
 
 if (vehicleHistoryDate && vehicleHistoryRows.length > 0) {
