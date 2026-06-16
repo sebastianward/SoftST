@@ -9,7 +9,7 @@ const dotenv = require("dotenv");
 const DatabaseService = require("./services/db");
 const { requireAuth, requireAdmin, requireAdminOrOperator } = require("./middleware/auth");
 const { buildEntryZpl, sendZplToPrinter } = require("./services/print");
-const { sendCreatedEntryEmail } = require("./services/mail");
+const { sendCreatedEntryEmail, sendNotificationDueEmail } = require("./services/mail");
 
 dotenv.config();
 
@@ -28,6 +28,7 @@ const db = new DatabaseService({
   dbPath: path.join(dataDir, "app.sqlite"),
 });
 let printWorkerRunning = false;
+let notificationMailWorkerRunning = false;
 const assetVersion = process.env.ASSET_VERSION || String(Date.now());
 
 const storage = multer.diskStorage({
@@ -56,8 +57,8 @@ const departmentAreaLabels = {
 };
 const entryStatuses = [
   { value: "diagnostico_pendiente", label: "Diagnostico pendiente" },
-  { value: "pendiente_cotizacion", label: "Pendiente de cotizacion" },
   { value: "no_asignado", label: "No asignado" },
+  { value: "pendiente_cotizacion", label: "Pendiente de cotizacion" },
   { value: "espera_oc", label: "Espera de OC" },
   { value: "finalizado", label: "Finalizado" },
 ];
@@ -90,6 +91,7 @@ const appSettingsDefaults = {
   urgent_days_after_deadline: "1",
   diagnostic_min_days: "5",
   diagnostic_max_days: "7",
+  notification_mail_cutoff_at: "",
   vehicle_reset_time: "06:00",
   vehicle_last_reset_shift_key: "",
   mail_info_text:
@@ -923,6 +925,84 @@ function backfillNotifications() {
   entries.forEach((entry) => ensureNotificationsForEntry(entry));
 }
 
+function initializeNotificationMailCutoff() {
+  const settings = getAppSettings();
+
+  if (String(settings.notification_mail_cutoff_at || "").trim()) {
+    return;
+  }
+
+  const cutoffAt = formatLocalDateTime();
+  db.run(
+    "UPDATE notifications SET emailed_at = ?, email_error = NULL WHERE emailed_at IS NULL",
+    [cutoffAt]
+  );
+  db.setAppSettings({ notification_mail_cutoff_at: cutoffAt });
+}
+
+function triggerNotificationMailWorker() {
+  processPendingNotificationEmails().catch((error) => {
+    console.error("Error al procesar correos de notificaciones:", error);
+  });
+}
+
+async function processPendingNotificationEmails() {
+  if (notificationMailWorkerRunning) {
+    return;
+  }
+
+  notificationMailWorkerRunning = true;
+
+  try {
+    const notifications = db.all(
+      `SELECT
+         n.id,
+         n.entry_id,
+         n.notification_type,
+         n.title,
+         n.message,
+         n.due_at,
+         n.created_at,
+         e.business_name,
+         e.worker_name_snapshot,
+         e.created_at AS entry_created_at
+       FROM notifications n
+       JOIN entries e ON e.id = n.entry_id
+       WHERE n.emailed_at IS NULL
+         AND e.deleted_at IS NULL
+         AND datetime(n.due_at) <= datetime('now')
+       ORDER BY datetime(n.due_at) ASC, n.id ASC
+       LIMIT 10`
+    ).map((notification) => ({
+      ...notification,
+      due_at: formatUtcSqliteDateTimeForDisplay(notification.due_at),
+      created_at: formatUtcSqliteDateTimeForDisplay(notification.created_at),
+      entry_created_at: formatUtcSqliteDateTimeForDisplay(notification.entry_created_at),
+    }));
+
+    for (const notification of notifications) {
+      try {
+        const result = await sendNotificationDueEmail(notification);
+        db.run(
+          "UPDATE notifications SET emailed_at = ?, email_error = ? WHERE id = ?",
+          [
+            formatLocalDateTime(),
+            result.skipped ? String(result.reason || "skipped") : null,
+            Number(notification.id),
+          ]
+        );
+      } catch (error) {
+        db.run("UPDATE notifications SET email_error = ? WHERE id = ?", [
+          String(error.message || error),
+          Number(notification.id),
+        ]);
+      }
+    }
+  } finally {
+    notificationMailWorkerRunning = false;
+  }
+}
+
 function queuePrintJob(entryId, reason) {
   const entry = db.get(
     `SELECT id, business_name, rut, contact_name, contact_email, contact_phone,
@@ -1102,10 +1182,12 @@ async function bootstrap() {
   ]);
   backfillWorkerEmailsAndAccounts();
   backfillNotifications();
+  initializeNotificationMailCutoff();
   seedDefaultVehicles();
   backfillReplacementVehicles();
   processVehicleShiftReset();
   setInterval(triggerPrintWorker, 15000);
+  setInterval(triggerNotificationMailWorker, 60000);
   setInterval(() => processVehicleShiftReset(), 30000);
 
   app.set("view engine", "ejs");

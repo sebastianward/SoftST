@@ -16,6 +16,24 @@ function getInternalRecipients() {
     .filter(Boolean);
 }
 
+function getNotificationRecipients() {
+  const explicitRecipients = String(process.env.MAIL_NOTIFICATION_TO || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (explicitRecipients.length > 0) {
+    return explicitRecipients;
+  }
+
+  const allowed = new Set([
+    "claudio.macheo@antalis.com",
+    "jose.contreras@antalis.com",
+  ]);
+
+  return getInternalRecipients().filter((recipient) => allowed.has(recipient.toLowerCase()));
+}
+
 function toPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -222,6 +240,58 @@ function buildCreatedEntryEmail(entry) {
   };
 }
 
+function buildNotificationDueEmail(notification) {
+  const rows = [
+    ["Ingreso", `#${notification.entry_id}`],
+    ["Empresa", notification.business_name],
+    ["Tipo de notificacion", notification.title],
+    ["Vence desde", notification.due_at],
+    ["Ingresado por", notification.worker_name_snapshot || "-"],
+    ["Fecha de creacion del ingreso", notification.entry_created_at || "-"],
+    ["Detalle", notification.message],
+  ];
+
+  const text = [
+    "[DEBUG] Correo de notificacion de Registro Ingresos Antalis.",
+    "",
+    `Notificacion activa para el ingreso #${notification.entry_id}.`,
+    "",
+    ...rows.map(([label, value]) => `${label}: ${value}`),
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #22164b;">
+      <p style="display: inline-block; margin: 0 0 16px; padding: 6px 10px; background: #fff2b3; color: #6c5200; font-weight: 700; border-radius: 999px;">
+        DEBUG: correo de notificacion
+      </p>
+      <h2 style="margin-bottom: 12px;">${escapeHtml(notification.title)} | ingreso #${escapeHtml(notification.entry_id)}</h2>
+      <p style="margin-top: 0;">Aviso automatico para seguimiento interno de Packaging.</p>
+      <table style="border-collapse: collapse; width: 100%; max-width: 760px;">
+        <tbody>
+          ${rows
+            .map(
+              ([label, value]) => `
+                <tr>
+                  <td style="padding: 8px 12px; border: 1px solid #ddd3f5; font-weight: 700; width: 220px;">${escapeHtml(
+                    label
+                  )}</td>
+                  <td style="padding: 8px 12px; border: 1px solid #ddd3f5;">${escapeHtml(value)}</td>
+                </tr>
+              `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `.trim();
+
+  return {
+    subject: `[DEBUG] Registro Ingresos Antalis: ${notification.title} ingreso #${notification.entry_id}`,
+    text,
+    html,
+  };
+}
+
 function buildAttachments(entry) {
   const regularAttachments = (entry.attachments || [])
     .map((attachmentPath) => {
@@ -327,6 +397,29 @@ async function sendCreatedEntryEmail(entry) {
   return { skipped: false, result, recipients: to };
 }
 
+async function sendNotificationDueEmail(notification) {
+  if (!isMailEnabled()) {
+    return { skipped: true, reason: "mail_disabled" };
+  }
+
+  const recipients = getNotificationRecipients().filter(Boolean);
+
+  if (recipients.length === 0) {
+    return { skipped: true, reason: "missing_notification_recipients" };
+  }
+
+  const email = buildNotificationDueEmail(notification);
+  const result = await sendMail({
+    to: recipients.join(", "),
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+  });
+
+  return { skipped: false, result, recipients };
+}
+
 module.exports = {
   sendCreatedEntryEmail,
+  sendNotificationDueEmail,
 };

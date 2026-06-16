@@ -98,6 +98,8 @@ class DatabaseService {
         message TEXT NOT NULL,
         due_at TEXT NOT NULL,
         read_at TEXT,
+        emailed_at TEXT,
+        email_error TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(entry_id, notification_type),
         FOREIGN KEY(entry_id) REFERENCES entries(id)
@@ -194,6 +196,8 @@ class DatabaseService {
     this.ensureColumn("entries", "area", "TEXT NOT NULL DEFAULT 'servicio_tecnico'");
     this.ensureColumn("entries", "deleted_at", "TEXT");
     this.ensureColumn("entries", "deleted_by_user_id", "INTEGER");
+    this.ensureColumn("notifications", "emailed_at", "TEXT");
+    this.ensureColumn("notifications", "email_error", "TEXT");
     this.ensureColumn("vehicles", "area", "TEXT NOT NULL DEFAULT 'servicio_tecnico'");
     this.ensureColumn("vehicles", "is_replacement", "INTEGER NOT NULL DEFAULT 0");
     this.ensureColumn("vehicles", "assigned_worker_id", "INTEGER");
