@@ -4,25 +4,9 @@
 <main class="page-shell">
   <section class="hero">
     <div>
-      <h1>Operacion de ingresos</h1>
-      <p>Vista activa: <strong><%= currentAreaLabel %></strong>. Desde aqui puedes registrar nuevos ingresos, revisar historial y administrar trabajadores.</p>
+      <h1>Ingresos</h1>
     </div>
     <a class="button-link" href="/entries/new">Crear ingreso</a>
-  </section>
-
-  <section class="stats-grid">
-    <article class="stat-card">
-      <span>Trabajadores activos</span>
-      <strong><%= stats.activeWorkers %></strong>
-    </article>
-    <article class="stat-card">
-      <span>Ingresos acumulados</span>
-      <strong><%= stats.totalEntries %></strong>
-    </article>
-    <article class="stat-card">
-      <span>Notificaciones visibles</span>
-      <strong><%= notificationCount %></strong>
-    </article>
   </section>
 
   <section class="panel">

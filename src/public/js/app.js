@@ -10,6 +10,8 @@ const workerSearch = document.querySelector("#workerSearch");
 const workerCards = document.querySelectorAll("[data-worker-name]");
 const entrySearch = document.querySelector("#entrySearch");
 const entryStatusFilter = document.querySelector("#entryStatusFilter");
+const entrySearchShell = document.querySelector("[data-entry-search-shell]");
+const entrySearchToggle = document.querySelector("[data-entry-search-toggle]");
 const entryRows = document.querySelectorAll("[data-entry-row]");
 const entrySortButtons = document.querySelectorAll(".table-sort-button");
 const vehicleHistoryDate = document.querySelector("#vehicleHistoryDate");
@@ -28,6 +30,10 @@ const textModalClosers = document.querySelectorAll("[data-close-text-modal]");
 const passwordModal = document.querySelector("#passwordModal");
 const passwordModalOpeners = document.querySelectorAll("[data-open-password-modal]");
 const passwordModalClosers = document.querySelectorAll("[data-close-password-modal]");
+const headerMenus = Array.from(document.querySelectorAll("[data-menu-toggle]")).map((toggle) => ({
+  toggle,
+  panel: toggle.parentElement?.querySelector("[data-menu-panel]"),
+})).filter((menu) => menu.panel);
 let activeTextInput = null;
 let activeTextForm = null;
 const workerSearchField = document.querySelector("#workerSearchField");
@@ -38,8 +44,6 @@ const workerIdInput = document.querySelector("#workerId");
 const workerNameInput = document.querySelector("#workerName");
 const workerOptions = workerPickerList ? Array.from(workerPickerList.querySelectorAll(".worker-picker-option")) : [];
 const vehicleWorkerPickers = document.querySelectorAll("[data-vehicle-worker-picker]");
-const entriesVisibilityForm = document.querySelector(".entries-visibility-form");
-const visibilityCheckboxes = document.querySelectorAll(".entries-visibility-form input[type='checkbox']");
 const entriesTable = document.querySelector("#entriesTable");
 const entriesTableWrap = document.querySelector(".entries-table-wrap");
 const entriesScrollbarTop = document.querySelector("[data-entries-scrollbar-top]");
@@ -175,6 +179,42 @@ if (entryRows.length > 0) {
   applyEntryFilters();
 }
 
+if (entrySearchShell && entrySearchToggle && entrySearch) {
+  const syncEntrySearchVisibility = (expanded) => {
+    entrySearchShell.classList.toggle("is-collapsed", !expanded);
+
+    if (expanded) {
+      window.requestAnimationFrame(() => entrySearch.focus());
+    }
+  };
+
+  syncEntrySearchVisibility(Boolean(entrySearch.value.trim()));
+
+  entrySearchToggle.addEventListener("click", () => {
+    const shouldExpand = entrySearchShell.classList.contains("is-collapsed");
+
+    if (!shouldExpand && entrySearch.value.trim()) {
+      entrySearch.value = "";
+      applyEntryFilters();
+    }
+
+    syncEntrySearchVisibility(shouldExpand);
+  });
+
+  entrySearch.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !entrySearch.value.trim()) {
+      syncEntrySearchVisibility(false);
+      entrySearchToggle.focus();
+    }
+  });
+
+  entrySearch.addEventListener("blur", () => {
+    if (!entrySearch.value.trim()) {
+      syncEntrySearchVisibility(false);
+    }
+  });
+}
+
 if (vehicleHistoryDate && vehicleHistoryRows.length > 0) {
   const syncVehicleHistoryDate = () => {
     const selectedDate = vehicleHistoryDate.value;
@@ -188,25 +228,6 @@ if (vehicleHistoryDate && vehicleHistoryRows.length > 0) {
   vehicleHistoryDateClear?.addEventListener("click", () => {
     vehicleHistoryDate.value = "";
     syncVehicleHistoryDate();
-  });
-}
-
-if (entriesVisibilityForm && visibilityCheckboxes.length > 0) {
-  const syncEntriesVisibility = () => {
-    const params = new URLSearchParams(window.location.search);
-
-    visibilityCheckboxes.forEach((checkbox) => {
-      params.set(checkbox.name, checkbox.checked ? "1" : "0");
-    });
-
-    const query = params.toString();
-    window.location.assign(`${entriesVisibilityForm.action}?${query}`);
-  };
-
-  visibilityCheckboxes.forEach((checkbox) => {
-    checkbox.addEventListener("change", () => {
-      syncEntriesVisibility();
-    });
   });
 }
 
@@ -360,6 +381,53 @@ if (passwordModal && passwordModalOpeners.length > 0) {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !passwordModal.hidden) {
       closePasswordModal();
+    }
+  });
+}
+
+if (headerMenus.length > 0) {
+  const closeHeaderMenu = (menu) => {
+    menu.panel.hidden = true;
+    menu.toggle.setAttribute("aria-expanded", "false");
+  };
+
+  const openHeaderMenu = (menu) => {
+    headerMenus.forEach((otherMenu) => {
+      if (otherMenu !== menu) {
+        closeHeaderMenu(otherMenu);
+      }
+    });
+
+    menu.panel.hidden = false;
+    menu.toggle.setAttribute("aria-expanded", "true");
+  };
+
+  headerMenus.forEach((menu) => {
+    menu.toggle.addEventListener("click", () => {
+      if (menu.panel.hidden) {
+        openHeaderMenu(menu);
+        return;
+      }
+
+      closeHeaderMenu(menu);
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    headerMenus.forEach((menu) => {
+      if (!menu.toggle.contains(event.target) && !menu.panel.contains(event.target)) {
+        closeHeaderMenu(menu);
+      }
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      headerMenus.forEach((menu) => {
+        if (!menu.panel.hidden) {
+          closeHeaderMenu(menu);
+        }
+      });
     }
   });
 }

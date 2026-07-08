@@ -4,51 +4,66 @@
       <img src="/public/img/logo-antalis-tem.svg" alt="Antalis TEM">
     </a>
     <div class="brand-text">
-      <a class="brand" href="/">Registro Ingresos Antalis</a>
-      <p class="brand-copy">Registro web para recepcion de equipos</p>
+      <a class="brand" href="/">Registro Ingresos</a>
     </div>
   </div>
 
   <% if (currentUser) { %>
     <nav class="top-nav">
-      <a href="/">Inicio</a>
-      <a href="/entries">Ingresos</a>
-      <a href="/entries/new">Nuevo ingreso</a>
-      <% if (showVehiclesModule) { %>
-        <a href="/camionetas">Camionetas</a>
-      <% } %>
-      <% if (currentUser.role === "admin") { %>
-        <a href="/workers">Trabajadores</a>
-        <a href="/settings">Configuracion</a>
-        <div class="area-switcher">
-          <% areaOptions.forEach((areaOption) => { %>
-            <a class="area-chip <%= currentArea === areaOption.value ? "is-active" : "" %>" href="/admin/switch-area/<%= areaOption.value %>">
-              <%= areaOption.label %>
+      <div class="top-nav-links">
+        <a href="/">Inicio</a>
+        <a href="/entries">Ingresos</a>
+        <a href="/entries/new">Nuevo ingreso</a>
+        <% if (showVehiclesModule) { %>
+          <a href="/camionetas">Camionetas</a>
+        <% } %>
+      </div>
+      <div class="top-nav-tools">
+        <div class="header-utility-cluster">
+          <% if (currentUser.role === "admin") { %>
+            <div class="area-switcher">
+              <% areaOptions.forEach((areaOption) => { %>
+                <a class="area-chip header-control <%= currentArea === areaOption.value ? "is-active" : "" %>" href="/admin/switch-area/<%= areaOption.value %>">
+                  <%= areaOption.label %>
+                </a>
+              <% }) %>
+            </div>
+            <a class="notification-link" href="/notifications" aria-label="Notificaciones">
+              <span class="bell">&#128276;</span>
+              <% if (notificationCount > 0) { %>
+                <span class="badge"><%= notificationCount %></span>
+              <% } else { %>
+                <span class="badge is-empty">0</span>
+              <% } %>
             </a>
-          <% }) %>
-        </div>
-      <% } %>
-      <% if (currentUser.role === "admin") { %>
-        <a class="notification-link" href="/notifications" aria-label="Notificaciones">
-          <span class="bell">&#128276;</span>
-          <% if (notificationCount > 0) { %>
-            <span class="badge"><%= notificationCount %></span>
-          <% } else { %>
-            <span class="badge is-empty">0</span>
+            <div class="account-menu">
+              <button class="ghost-button header-control header-icon-button" type="button" data-menu-toggle aria-haspopup="true" aria-expanded="false" aria-label="Configuracion" title="Configuracion">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.05.72 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.58-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z" fill="currentColor"></path>
+                </svg>
+              </button>
+              <div class="account-menu-panel settings-menu-panel" data-menu-panel hidden>
+                <a class="settings-menu-link" href="/settings">Configuracion</a>
+                <a class="settings-menu-link" href="/workers">Trabajadores</a>
+              </div>
+            </div>
           <% } %>
-        </a>
-      <% } %>
-      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cambiar tema">
-        <span data-theme-label>Modo claro</span>
-      </button>
-      <button class="ghost-button" type="button" data-open-password-modal>Cambiar clave</button>
-      <span class="user-chip">
-        <%= currentUser.email || currentUser.username %> | <%= currentUser.role %>
-        <% if (currentUser.role !== "admin") { %> | <%= currentAreaLabel %><% } %>
-      </span>
-      <form action="/logout" method="post">
-        <button class="ghost-button" type="submit">Salir</button>
-      </form>
+          <div class="account-menu">
+            <button class="user-chip header-control account-menu-toggle" type="button" data-menu-toggle aria-haspopup="true" aria-expanded="false">
+              <%= currentUser.username %>
+            </button>
+            <div class="account-menu-panel" data-menu-panel hidden>
+              <button class="ghost-button account-menu-action" type="button" data-theme-toggle aria-label="Cambiar tema">
+                <span data-theme-label>Modo claro</span>
+              </button>
+              <button class="ghost-button account-menu-action" type="button" data-open-password-modal>Cambiar clave</button>
+              <form action="/logout" method="post" class="account-menu-form">
+                <button class="ghost-button account-menu-action" type="submit">Salir</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
     </nav>
   <% } %>
 </header>

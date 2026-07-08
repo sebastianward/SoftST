@@ -109,7 +109,7 @@ button:hover,
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  padding: 1.5rem 2rem;
+  padding: 1.2rem 2rem;
   border-bottom: 1px solid var(--line);
   background: var(--header-bg);
   backdrop-filter: blur(12px);
@@ -119,7 +119,7 @@ button:hover,
 }
 
 .brand {
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: 700;
   line-height: 1.15;
   text-decoration: none;
@@ -135,14 +135,14 @@ button:hover,
 .brand-wrap {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
 .brand-logo img {
   display: block;
-  width: 88px;
+  width: 52px;
   height: auto;
-  border-radius: 14px;
+  border-radius: 10px;
   box-shadow: var(--shadow);
 }
 
@@ -158,6 +158,23 @@ button:hover,
   justify-content: flex-end;
 }
 
+.top-nav-links,
+.top-nav-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.top-nav-links {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.top-nav-tools {
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+
 .top-nav a {
   display: inline-flex;
   align-items: center;
@@ -168,6 +185,38 @@ button:hover,
   color: var(--accent-dark);
 }
 
+.top-nav .header-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.38rem 0.72rem;
+  border-radius: 999px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.header-utility-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: nowrap;
+}
+
+.header-icon-button {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.header-icon-button svg {
+  width: 2rem;
+  height: 2rem;
+  display: block;
+}
+
 .area-switcher {
   display: inline-flex;
   align-items: center;
@@ -176,7 +225,7 @@ button:hover,
 }
 
 .area-chip {
-  padding: 0.45rem 0.8rem;
+  padding: 0.38rem 0.72rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: transparent;
@@ -191,6 +240,65 @@ button:hover,
 .notification-link {
   position: relative;
   padding-right: 1rem;
+}
+
+.account-menu {
+  position: relative;
+}
+
+.account-menu-toggle {
+  border: none;
+  cursor: pointer;
+}
+
+.account-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.5rem;
+  min-width: 220px;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.account-menu-panel[hidden] {
+  display: none !important;
+}
+
+.account-menu-action {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.account-menu-form {
+  margin: 0;
+}
+
+.settings-menu-panel {
+  min-width: 0;
+  width: max-content;
+  gap: 0.15rem;
+  padding: 0.45rem;
+}
+
+.settings-menu-link {
+  display: block;
+  width: 100%;
+  padding: 0.8rem 0.95rem;
+  border-radius: 12px;
+  color: var(--ink) !important;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.settings-menu-link:hover {
+  background: var(--soft-accent);
 }
 
 .bell {
@@ -215,10 +323,11 @@ button:hover,
 }
 
 .user-chip {
-  padding: 0.45rem 0.8rem;
+  padding: 0.38rem 0.72rem;
   border-radius: 999px;
   background: var(--soft-accent);
   color: var(--ink);
+  white-space: nowrap;
 }
 
 .flash {
@@ -427,7 +536,6 @@ textarea {
 }
 
 table {
-  width: 100%;
   border-collapse: collapse;
 }
 
@@ -457,7 +565,36 @@ table {
 }
 
 .entries-table {
-  min-width: 1780px;
+  width: max-content;
+  min-width: 1640px;
+}
+
+.entries-table .entries-col-id {
+  width: 1%;
+}
+
+.entries-table .entries-col-status {
+  width: 176px;
+}
+
+.entries-table .entries-col-company {
+  width: 190px;
+}
+
+.entries-table .entries-col-rut {
+  width: 120px;
+}
+
+.entries-table .entries-col-contact {
+  width: 150px;
+}
+
+.entries-table .entries-col-email {
+  width: 170px;
+}
+
+.entries-table .entries-col-phone {
+  width: 126px;
 }
 
 .entries-table th {
@@ -505,13 +642,22 @@ table {
 
 .entries-table td {
   vertical-align: middle;
-  min-width: 84px;
+  min-width: 0;
 }
 
 .entries-table th:nth-child(1),
 .entries-table td:nth-child(1) {
-  min-width: 54px;
-  width: 54px;
+  min-width: 42px;
+  width: 42px;
+  padding-left: 0.16rem;
+  padding-right: 0.16rem;
+  white-space: nowrap;
+}
+
+.entries-table th:nth-child(2),
+.entries-table td:nth-child(2) {
+  min-width: 176px;
+  width: 176px;
 }
 
 .entries-table th:nth-child(3),
@@ -551,7 +697,7 @@ table {
 }
 
 .entries-table .col-status {
-  min-width: 170px;
+  min-width: 176px;
 }
 
 .entries-table .col-series {
@@ -605,7 +751,7 @@ table {
 .entries-table input,
 .entries-table select,
 .entries-table textarea {
-  min-width: 84px;
+  min-width: 0;
   width: 100%;
   padding: 0.34rem 0.48rem;
   border-radius: 8px;
@@ -625,7 +771,7 @@ table {
 
 .table-static {
   display: inline-block;
-  min-width: 60px;
+  min-width: 0;
   line-height: 1.12;
   font-size: 0.84rem;
 }
@@ -1089,6 +1235,7 @@ dd {
   align-items: center;
   gap: 0.8rem;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .entries-status-filter {
@@ -1099,40 +1246,52 @@ dd {
   padding: 0.65rem 0.9rem;
 }
 
-.entries-filter-details {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 0.65rem 0.85rem;
-  background: var(--input-bg);
-}
-
-.entries-filter-details summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.entries-filter-details[open] summary {
-  margin-bottom: 0.6rem;
-}
-
-.entries-visibility-form {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
 .panel-title-workers {
   align-items: center;
   min-width: 0;
 }
 
+.entries-search-shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.entries-search-shell.is-collapsed .workers-search {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.toolbar-icon-button {
+  width: 2.3rem;
+  min-width: 2.3rem;
+  height: 2.3rem;
+  padding: 0;
+}
+
+.toolbar-icon-button svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
 .workers-search {
   min-width: 240px;
+  width: 240px;
+  transition: width 0.18s ease, opacity 0.18s ease;
 }
 
 .workers-search input {
   padding: 0.65rem 0.9rem;
+}
+
+.entry-create-button {
+  min-width: 3.2rem;
+  padding: 0.6rem;
+  font-size: 1.7rem;
+  line-height: 1;
 }
 
 .worker-card.is-inactive,

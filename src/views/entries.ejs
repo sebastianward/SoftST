@@ -4,11 +4,8 @@
 <main class="page-shell">
   <section class="panel">
     <div class="panel-title panel-title-workers">
-      <h1>Historial de ingresos | <%= currentAreaLabel %></h1>
+      <h1>Historial de ingresos</h1>
       <div class="workers-toolbar">
-        <label class="workers-search">
-          <input type="search" id="entrySearch" placeholder="Buscar en cualquier campo">
-        </label>
         <label class="entries-status-filter">
           <select id="entryStatusFilter">
             <option value="all">Estado: todos los visibles</option>
@@ -17,40 +14,57 @@
             <% }) %>
           </select>
         </label>
-        <details class="entries-filter-details">
-          <summary>Mas filtros</summary>
-          <form class="entries-visibility-form" action="/entries" method="get">
-            <label class="checkbox-row">
-              <input type="checkbox" name="showPending" value="1" <%= visibilityFilters.showPending ? "checked" : "" %>>
-              Pendientes
-            </label>
-            <label class="checkbox-row">
-              <input type="checkbox" name="showFinalized" value="1" <%= visibilityFilters.showFinalized ? "checked" : "" %>>
-              Terminados
-            </label>
-            <label class="checkbox-row">
-              <input type="checkbox" name="showDeleted" value="1" <%= visibilityFilters.showDeleted ? "checked" : "" %>>
-              Eliminados
-            </label>
-          </form>
-        </details>
-        <a class="button-link button-link-compact" href="/entries/new">Nuevo ingreso</a>
+        <div class="entries-search-shell is-collapsed" data-entry-search-shell>
+          <button type="button" class="ghost-button toolbar-icon-button" data-entry-search-toggle aria-label="Buscar">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"></circle>
+              <path d="M16 16l4 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+            </svg>
+          </button>
+          <label class="workers-search">
+            <input type="search" id="entrySearch" placeholder="Buscar en cualquier campo">
+          </label>
+        </div>
+        <a class="button-link button-link-compact entry-create-button" href="/entries/new" aria-label="Nuevo ingreso">+</a>
       </div>
     </div>
 
     <% if (entries.length === 0) { %>
       <p class="empty-state">No hay registros todavia.</p>
     <% } else { %>
+      <% if (["admin", "operator"].includes(currentUser.role)) { %>
+        <div hidden aria-hidden="true">
+          <% entries.forEach((entry) => { %>
+            <form id="entry-form-<%= entry.id %>" action="/entries/<%= entry.id %>/update" method="post" class="table-form"></form>
+          <% }) %>
+        </div>
+      <% } %>
       <div class="entries-scrollbar-top" data-entries-scrollbar-top aria-hidden="true">
         <div class="entries-scrollbar-top-track" data-entries-scrollbar-top-track></div>
       </div>
       <div class="table-wrap entries-table-wrap">
         <table class="entries-table" id="entriesTable">
+          <colgroup>
+            <col class="entries-col-id">
+            <col class="entries-col-status">
+            <col class="entries-col-company">
+            <col class="entries-col-rut">
+            <col class="entries-col-contact">
+            <col class="entries-col-email">
+            <col class="entries-col-phone">
+            <col span="17">
+          </colgroup>
           <thead>
             <tr>
               <th><button type="button" class="table-sort-button" data-sort-key="id">ID</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="entry_status">Estado</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="business_name">Empresa</button></th>
+              <th><button type="button" class="table-sort-button" data-sort-key="serial_number">Serie</button></th>
+              <th><button type="button" class="table-sort-button" data-sort-key="sap_code">SAP</button></th>
+              <th><button type="button" class="table-sort-button" data-sort-key="diagnostic_task">Tarea diagnostico</button></th>
+              <th><button type="button" class="table-sort-button" data-sort-key="final_task">Tarea final</button></th>
+              <th><button type="button" class="table-sort-button" data-sort-key="quotation">Cotizacion</button></th>
+              <th><button type="button" class="table-sort-button" data-sort-key="purchase_order">OC</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="rut">RUT</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="contact_name">Contacto</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="contact_email">Correo</button></th>
@@ -58,15 +72,9 @@
               <th><button type="button" class="table-sort-button" data-sort-key="ownership">Propiedad</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="branch_office">Sucursal</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="equipment_model">Equipo</button></th>
-              <th><button type="button" class="table-sort-button" data-sort-key="serial_number">Serie</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="worker_name_snapshot">Ingresado por</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="created_by_username">Creado por</button></th>
-              <th><button type="button" class="table-sort-button" data-sort-key="sap_code">SAP</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="comment">Comentario</button></th>
-              <th><button type="button" class="table-sort-button" data-sort-key="diagnostic_task">Tarea diagnostico</button></th>
-              <th><button type="button" class="table-sort-button" data-sort-key="final_task">Tarea final</button></th>
-              <th><button type="button" class="table-sort-button" data-sort-key="quotation">Cotizacion</button></th>
-              <th><button type="button" class="table-sort-button" data-sort-key="purchase_order">OC</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="client_report">Reporte cliente</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="details_accessories">Detalle/accesorios</button></th>
               <th><button type="button" class="table-sort-button" data-sort-key="image_count">Imagenes</button></th>
@@ -131,7 +139,6 @@
                 class="<%= entry.deleted_at ? 'is-logically-deleted' : '' %>"
               >
                 <% if (["admin", "operator"].includes(currentUser.role)) { %>
-                  <form id="entry-form-<%= entry.id %>" action="/entries/<%= entry.id %>/update" method="post" class="table-form"></form>
                     <td>#<%= entry.id %></td>
                     <td class="col-status">
                       <% if (entry.deleted_at) { %>
@@ -148,6 +155,12 @@
                       <% } %>
                     </td>
                     <td><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="businessName" form="entry-form-<%= entry.id %>" value="<%= entry.business_name %>" required><% } else { %><span class="table-static"><%= entry.business_name %></span><% } %></td>
+                    <td class="col-series"><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="serialNumber" form="entry-form-<%= entry.id %>" value="<%= entry.serial_number || "" %>"><% } else { %><span class="table-static"><%= entry.serial_number || "-" %></span><% } %></td>
+                    <td><% if (!entry.deleted_at) { %><input type="text" name="sapCode" form="entry-form-<%= entry.id %>" value="<%= entry.sap_code || "" %>"><% } else { %><span class="table-static"><%= entry.sap_code || "-" %></span><% } %></td>
+                    <td><% if (!entry.deleted_at) { %><input type="text" name="diagnosticTask" form="entry-form-<%= entry.id %>" value="<%= entry.diagnostic_task || "" %>"><% } else { %><span class="table-static"><%= entry.diagnostic_task || "-" %></span><% } %></td>
+                    <td><% if (!entry.deleted_at) { %><input type="text" name="finalTask" form="entry-form-<%= entry.id %>" value="<%= entry.final_task || "" %>"><% } else { %><span class="table-static"><%= entry.final_task || "-" %></span><% } %></td>
+                    <td><% if (!entry.deleted_at) { %><input type="text" name="quotation" form="entry-form-<%= entry.id %>" value="<%= entry.quotation || "" %>"><% } else { %><span class="table-static"><%= entry.quotation || "-" %></span><% } %></td>
+                    <td><% if (!entry.deleted_at) { %><input type="text" name="purchaseOrder" form="entry-form-<%= entry.id %>" value="<%= entry.purchase_order || "" %>"><% } else { %><span class="table-static"><%= entry.purchase_order || "-" %></span><% } %></td>
                     <td><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="rut" form="entry-form-<%= entry.id %>" value="<%= entry.rut %>" required><% } else { %><span class="table-static"><%= entry.rut %></span><% } %></td>
                     <td><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="contactName" form="entry-form-<%= entry.id %>" value="<%= entry.contact_name %>" required><% } else { %><span class="table-static"><%= entry.contact_name %></span><% } %></td>
                     <td><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="email" name="contactEmail" form="entry-form-<%= entry.id %>" value="<%= entry.contact_email || "" %>"><% } else { %><span class="table-static"><%= entry.contact_email || "-" %></span><% } %></td>
@@ -155,7 +168,6 @@
                     <td><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="ownership" form="entry-form-<%= entry.id %>" value="<%= entry.ownership || "" %>"><% } else { %><span class="table-static"><%= entry.ownership || "-" %></span><% } %></td>
                     <td><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="branchOffice" form="entry-form-<%= entry.id %>" value="<%= entry.branch_office || "" %>"><% } else { %><span class="table-static"><%= entry.branch_office || "-" %></span><% } %></td>
                     <td><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="equipmentModel" form="entry-form-<%= entry.id %>" value="<%= entry.equipment_model %>" required><% } else { %><span class="table-static"><%= entry.equipment_model %></span><% } %></td>
-                    <td class="col-series"><% if (currentUser.role === "admin" && !entry.deleted_at) { %><input type="text" name="serialNumber" form="entry-form-<%= entry.id %>" value="<%= entry.serial_number || "" %>"><% } else { %><span class="table-static"><%= entry.serial_number || "-" %></span><% } %></td>
                     <td>
                       <% if (currentUser.role === "admin" && !entry.deleted_at) { %>
                         <select name="workerId" form="entry-form-<%= entry.id %>" required>
@@ -168,7 +180,6 @@
                       <% } %>
                     </td>
                     <td><span class="table-static"><%= entry.created_by_username %></span></td>
-                    <td><% if (!entry.deleted_at) { %><input type="text" name="sapCode" form="entry-form-<%= entry.id %>" value="<%= entry.sap_code || "" %>"><% } else { %><span class="table-static"><%= entry.sap_code || "-" %></span><% } %></td>
                     <td class="col-comment">
                       <div class="comment-cell">
                         <% if (entry.comment) { %>
@@ -188,10 +199,6 @@
                       </button>
                       <input type="hidden" name="comment" form="entry-form-<%= entry.id %>" value="<%= entry.comment || "" %>">
                     </td>
-                    <td><% if (!entry.deleted_at) { %><input type="text" name="diagnosticTask" form="entry-form-<%= entry.id %>" value="<%= entry.diagnostic_task || "" %>"><% } else { %><span class="table-static"><%= entry.diagnostic_task || "-" %></span><% } %></td>
-                    <td><% if (!entry.deleted_at) { %><input type="text" name="finalTask" form="entry-form-<%= entry.id %>" value="<%= entry.final_task || "" %>"><% } else { %><span class="table-static"><%= entry.final_task || "-" %></span><% } %></td>
-                    <td><% if (!entry.deleted_at) { %><input type="text" name="quotation" form="entry-form-<%= entry.id %>" value="<%= entry.quotation || "" %>"><% } else { %><span class="table-static"><%= entry.quotation || "-" %></span><% } %></td>
-                    <td><% if (!entry.deleted_at) { %><input type="text" name="purchaseOrder" form="entry-form-<%= entry.id %>" value="<%= entry.purchase_order || "" %>"><% } else { %><span class="table-static"><%= entry.purchase_order || "-" %></span><% } %></td>
                     <td>
                       <button
                         type="button"
@@ -302,6 +309,12 @@
                     </div>
                   </td>
                   <td><%= entry.business_name %></td>
+                  <td class="col-series"><%= entry.serial_number || "-" %></td>
+                  <td><%= entry.sap_code || "-" %></td>
+                  <td><%= entry.diagnostic_task || "-" %></td>
+                  <td><%= entry.final_task || "-" %></td>
+                  <td><%= entry.quotation || "-" %></td>
+                  <td><%= entry.purchase_order || "-" %></td>
                   <td><%= entry.rut %></td>
                   <td><%= entry.contact_name %></td>
                   <td><%= entry.contact_email || "-" %></td>
@@ -309,10 +322,8 @@
                   <td><%= entry.ownership || "-" %></td>
                   <td><%= entry.branch_office || "-" %></td>
                   <td><%= entry.equipment_model %></td>
-                  <td class="col-series"><%= entry.serial_number || "-" %></td>
                   <td><%= entry.worker_name_snapshot %></td>
                   <td><%= entry.created_by_username %></td>
-                  <td><%= entry.sap_code || "-" %></td>
                   <td class="col-comment">
                     <% if (entry.comment) { %>
                       <div class="comment-cell">
@@ -332,10 +343,6 @@
                       </div>
                     <% } %>
                   </td>
-                  <td><%= entry.diagnostic_task || "-" %></td>
-                  <td><%= entry.final_task || "-" %></td>
-                  <td><%= entry.quotation || "-" %></td>
-                  <td><%= entry.purchase_order || "-" %></td>
                   <td>
                     <button
                       type="button"
