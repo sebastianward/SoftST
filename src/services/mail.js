@@ -171,7 +171,7 @@ function buildCreatedEntryEmail(entry) {
   ];
 
   const text = [
-    "[DEBUG] Correo de prueba de Registro Ingresos Antalis.",
+    "Correo de Registro Ingresos Antalis.",
     "",
     `Se ha registrado un nuevo ingreso #${entry.id}.`,
     "",
@@ -180,9 +180,6 @@ function buildCreatedEntryEmail(entry) {
 
   const html = `
     <div style="font-family: Arial, sans-serif; color: #22164b;">
-      <p style="display: inline-block; margin: 0 0 16px; padding: 6px 10px; background: #fff2b3; color: #6c5200; font-weight: 700; border-radius: 999px;">
-        DEBUG: correo de prueba
-      </p>
       <h2 style="margin-bottom: 12px;">Nuevo ingreso registrado #${escapeHtml(entry.id)}</h2>
       <p style="margin-top: 0;">Resumen del formulario ingresado en Registro Ingresos Antalis.</p>
       <table style="border-collapse: collapse; width: 100%; max-width: 760px;">
@@ -234,7 +231,7 @@ function buildCreatedEntryEmail(entry) {
   `.trim();
 
   return {
-    subject: `[DEBUG] Registro Ingresos Antalis: registro creado ingreso #${entry.id}`,
+    subject: `Registro Ingresos Antalis: ingreso #${entry.id} registrado`,
     text,
     html,
   };
@@ -252,7 +249,7 @@ function buildNotificationDueEmail(notification) {
   ];
 
   const text = [
-    "[DEBUG] Correo de notificacion de Registro Ingresos Antalis.",
+    "Notificacion de Registro Ingresos Antalis.",
     "",
     `Notificacion activa para el ingreso #${notification.entry_id}.`,
     "",
@@ -261,9 +258,6 @@ function buildNotificationDueEmail(notification) {
 
   const html = `
     <div style="font-family: Arial, sans-serif; color: #22164b;">
-      <p style="display: inline-block; margin: 0 0 16px; padding: 6px 10px; background: #fff2b3; color: #6c5200; font-weight: 700; border-radius: 999px;">
-        DEBUG: correo de notificacion
-      </p>
       <h2 style="margin-bottom: 12px;">${escapeHtml(notification.title)} | ingreso #${escapeHtml(notification.entry_id)}</h2>
       <p style="margin-top: 0;">Aviso automatico para seguimiento interno de Packaging.</p>
       <table style="border-collapse: collapse; width: 100%; max-width: 760px;">
@@ -286,7 +280,7 @@ function buildNotificationDueEmail(notification) {
   `.trim();
 
   return {
-    subject: `[DEBUG] Registro Ingresos Antalis: ${notification.title} ingreso #${notification.entry_id}`,
+    subject: `Registro Ingresos Antalis: ${notification.title} ingreso #${notification.entry_id}`,
     text,
     html,
   };
