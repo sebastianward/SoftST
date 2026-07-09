@@ -1277,6 +1277,7 @@ async function bootstrap() {
       `SELECT id, business_name, equipment_model, worker_name_snapshot, created_at, image_paths
        FROM entries
        WHERE area = ?
+       AND deleted_at IS NULL
        ORDER BY id DESC
        LIMIT 5`,
       [currentArea]
@@ -1287,7 +1288,7 @@ async function bootstrap() {
       [currentArea]
     ).count;
     const totalEntries = db.get(
-      "SELECT COUNT(*) AS count FROM entries WHERE area = ?",
+      "SELECT COUNT(*) AS count FROM entries WHERE area = ? AND deleted_at IS NULL",
       [currentArea]
     ).count;
 
@@ -1984,7 +1985,7 @@ async function bootstrap() {
     }
 
     setFlash(req, "success", `Ingreso #${entryId} eliminado.`);
-    return res.redirect("/entries?showDeleted=1");
+    return res.redirect("/entries");
   });
 
   app.post("/entries/:id/restore", requireAuth, requireAdmin, (req, res) => {
@@ -2004,7 +2005,7 @@ async function bootstrap() {
     }
 
     setFlash(req, "success", `Ingreso #${entryId} restaurado.`);
-    return res.redirect("/entries?showDeleted=1");
+    return res.redirect("/entries");
   });
 
   app.get("/workers", requireAuth, requireAdmin, (req, res) => {
