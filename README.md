@@ -89,3 +89,9 @@ curl -I --max-time 10 http://localhost:3000
 ```
 
 Para reinicios posteriores: `sudo docker restart softst-app-1`. El primer despliegue requiere recrear el contenedor para quitar el device obligatorio antiguo. No eliminar data ni uploads. No usar docker compose down -v.
+
+### Selector de conexiones
+
+En Configuracion, USB directo y Serial/COM muestran selectores de dispositivos detectados en el servidor. Si no hay equipos compatibles se indica "No hay impresoras USB disponibles" o "No hay COM disponible". Conectar el equipo y usar **Actualizar dispositivos** para volver a consultar. Un equipo guardado que esta desconectado permanece identificado como tal; los trabajos siguen pendientes. Los dispositivos de almacenamiento y otros USB que no sean impresora o puerto serial no aparecen.
+
+Los campos Ethernet (IP y puerto TCP) se muestran solo al elegir Ethernet. Los parametros seriales se agrupan en "Parametros del puerto COM" y no se envian ni modifican al guardar Ethernet. La deteccion en Raspberry/Docker consulta /host-dev; en Windows consulta los puertos COM del sistema.

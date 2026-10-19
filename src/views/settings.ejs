@@ -70,26 +70,57 @@
   <section class="panel settings-panel">
     <h2>Impresora de etiquetas ZPL</h2>
     <p>Si no hay impresora, la pagina sigue funcionando y los trabajos quedan en espera. Reintento automatico cada 15 segundos.</p>
-    <form action="/settings/printer" method="post" class="settings-form">
+    <form action="/settings/printer" method="post" class="settings-form" id="printer-form">
       <label class="checkbox-row"><input type="checkbox" name="enabled" <%= printer.enabled ? 'checked' : '' %>> Activar envio de impresiones pendientes</label>
-      <div class="settings-grid">
-        <label>Conexion<select name="mode">
-          <% for (const [value, label] of [['usb', 'USB directo'], ['serial', 'Serial / COM'], ['tcp', 'Ethernet (TCP / ZPL)']]) { %>
-            <option value="<%= value %>" <%= printer.mode === value ? 'selected' : '' %>><%= label %></option>
-          <% } %>
-        </select></label>
-        <label>IP o nombre de red (Ethernet)<input name="host" value="<%= printer.host %>" placeholder="192.168.1.50"></label>
-        <label>Puerto Ethernet<input name="port" type="number" min="1" max="65535" value="<%= printer.port %>" required></label>
-        <label>Dispositivo USB o puerto serial<input name="devicePath" value="<%= printer.devicePath %>" placeholder="/dev/usb/lp0, /dev/ttyUSB0 o COM3"></label>
-        <label>Velocidad serial (baudios)<input name="baudRate" type="number" min="50" max="4000000" value="<%= printer.baudRate %>" required></label>
-        <label>Bits de datos<select name="dataBits"><% for (const n of [5,6,7,8]) { %><option <%= printer.dataBits === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
-        <label>Bits de parada<select name="stopBits"><% for (const n of [1,2]) { %><option <%= printer.stopBits === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
-        <label>Paridad<select name="parity"><% for (const n of ['none','even','odd','mark','space']) { %><option <%= printer.parity === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
-      </div>
-      <label class="checkbox-row"><input type="checkbox" name="rtscts" <%= printer.rtscts ? 'checked' : '' %>> Control de flujo serial RTS/CTS</label>
-      <p>Usa puertos del servidor: COM3 en Windows, /dev/ttyUSB0 o /dev/serial/by-id/... en Raspberry. Ethernet suele usar el puerto 9100. La impresora debe aceptar ZPL.</p>
+      <label>Tipo de conexion<select name="mode" id="printer-mode">
+        <% for (const [value, label] of [['usb', 'USB directo'], ['serial', 'Serial / COM'], ['tcp', 'Ethernet (red)']]) { %>
+          <option value="<%= value %>" <%= printer.mode === value ? 'selected' : '' %>><%= label %></option>
+        <% } %>
+      </select></label>
+      <p>Se muestran las impresoras y puertos conectados al servidor donde funciona SoftST.</p>
+      <% if (printerDiscoveryError) { %><p role="alert"><%= printerDiscoveryError %></p><% } %>
+      <% for (const mode of ['usb', 'serial']) {
+        const devices = printerDevices.filter(device => device.mode === mode);
+        const saved = printer.mode === mode ? printer.devicePath : '';
+        const disconnected = saved && !devices.some(device => device.path === saved);
+      %>
+      <fieldset data-printer-mode="<%= mode %>" <%= printer.mode !== mode ? 'hidden disabled' : '' %>>
+        <legend><%= mode === 'usb' ? 'Impresora USB' : 'Puerto serial / COM' %></legend>
+        <label><%= mode === 'usb' ? 'Impresoras USB detectadas' : 'Puertos COM disponibles' %>
+          <select name="devicePath">
+            <option value=""><%= devices.length ? 'Selecciona un dispositivo' : (mode === 'usb' ? 'No hay impresoras USB disponibles' : 'No hay COM disponible') %></option>
+            <% for (const device of devices) { %><option value="<%= device.path %>" <%= saved === device.path ? 'selected' : '' %>><%= device.label %> (<%= device.path %>)</option><% } %>
+            <% if (disconnected) { %><option value="<%= saved %>" selected>Guardado, desconectado: <%= saved %></option><% } %>
+          </select>
+        </label>
+        <% if (!devices.length && !printerDiscoveryError) { %><p role="status"><%= mode === 'usb' ? 'No hay impresoras USB disponibles.' : 'No hay COM disponible.' %> Conecta el equipo y pulsa Actualizar dispositivos.</p><% } %>
+        <a href="/settings#printer-form">Actualizar dispositivos</a>
+        <% if (mode === 'serial') { %>
+        <details>
+          <summary>Parametros del puerto COM</summary>
+          <p>Deben coincidir con la configuracion de la impresora.</p>
+          <div class="settings-grid">
+            <label>Velocidad (baudios)<input name="baudRate" type="number" min="50" max="4000000" value="<%= printer.baudRate %>" required></label>
+            <label>Bits de datos<select name="dataBits"><% for (const n of [5,6,7,8]) { %><option <%= printer.dataBits === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
+            <label>Bits de parada<select name="stopBits"><% for (const n of [1,2]) { %><option <%= printer.stopBits === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
+            <label>Paridad<select name="parity"><% for (const [value,label] of [['none','Sin paridad'],['even','Par'],['odd','Impar'],['mark','Marca'],['space','Espacio']]) { %><option value="<%= value %>" <%= printer.parity === value ? 'selected' : '' %>><%= label %></option><% } %></select></label>
+          </div>
+          <label class="checkbox-row"><input type="checkbox" name="rtscts" <%= printer.rtscts ? 'checked' : '' %>> Control de flujo RTS/CTS</label>
+        </details>
+        <% } %>
+      </fieldset>
+      <% } %>
+      <fieldset data-printer-mode="tcp" <%= printer.mode !== 'tcp' ? 'hidden disabled' : '' %>>
+        <legend>Conexion Ethernet</legend>
+        <div class="settings-grid">
+          <label>Direccion IP o nombre de la impresora<input name="host" value="<%= printer.host %>" placeholder="192.168.1.50" required></label>
+          <label>Puerto de red<input name="port" type="number" min="1" max="65535" value="<%= printer.port %>" required></label>
+        </div>
+        <p>La impresora debe aceptar ZPL por TCP. El puerto habitual es 9100.</p>
+      </fieldset>
       <button type="submit">Guardar impresora</button>
     </form>
+    <script src="/public/js/printer-settings.js?v=<%= assetVersion %>" defer></script>
     <h3>Ultimos 30 trabajos</h3>
     <p>Enviada indica entrega al dispositivo; no confirma que la etiqueta haya salido fisicamente. Si una conexion se corta durante el envio, el reintento puede repetir una etiqueta.</p>
     <div style="overflow-x:auto"><table><thead><tr><th>Trabajo</th><th>Ingreso</th><th>Estado</th><th>Intentos</th><th>Ultimo error</th></tr></thead><tbody>

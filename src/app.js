@@ -8,7 +8,7 @@ const bcrypt = require("bcryptjs");
 const dotenv = require("dotenv");
 const DatabaseService = require("./services/db");
 const { requireAuth, requireAdmin, requireAdminOrOperator } = require("./middleware/auth");
-const { buildEntryZpl, sendZplToPrinter } = require("./services/print");
+const { buildEntryZpl, sendZplToPrinter, listPrinterDevices } = require("./services/print");
 const { sendCreatedEntryEmail, sendNotificationDueEmail } = require("./services/mail");
 
 dotenv.config();
@@ -2189,10 +2189,19 @@ async function bootstrap() {
     }
   });
 
-  app.get("/settings", requireAuth, requireAdmin, (req, res) => {
+  app.get("/settings", requireAuth, requireAdmin, async (req, res) => {
+    let printerDevices = [];
+    let printerDiscoveryError = "";
+    try { printerDevices = await listPrinterDevices(); }
+    catch (error) {
+      console.error("No se pudieron detectar impresoras:", error.message);
+      printerDiscoveryError = "No se pudieron consultar los dispositivos. Revisa la conexion y vuelve a actualizar.";
+    }
     res.render("settings", {
       settings: getAppSettings(),
       printer: getPrinterSettings(),
+      printerDevices,
+      printerDiscoveryError,
       printJobs: db.all("SELECT id, entry_id, status, error_message, attempts FROM print_jobs ORDER BY id DESC LIMIT 30"),
     });
   });
@@ -2200,24 +2209,29 @@ async function bootstrap() {
   app.post("/settings/printer", requireAuth, requireAdmin, (req, res) => {
     const b = req.body;
     const mode = String(b.mode || "");
-    const port = Number(b.port);
-    const baud = Number(b.baudRate);
-    const device = String(b.devicePath || "").trim();
-    const host = String(b.host || "").trim();
+    const current = getPrinterSettings();
+    const port = mode === "tcp" ? Number(b.port) : current.port;
+    const baud = mode === "serial" ? Number(b.baudRate) : current.baudRate;
+    const device = mode === "tcp" ? current.devicePath : String(b.devicePath || "").trim();
+    const host = mode === "tcp" ? String(b.host || "").trim() : current.host;
+    const dataBits = mode === "serial" ? Number(b.dataBits) : current.dataBits;
+    const stopBits = mode === "serial" ? Number(b.stopBits) : current.stopBits;
+    const parity = mode === "serial" ? b.parity : current.parity;
+    const rtscts = mode === "serial" ? b.rtscts === "on" : current.rtscts;
     if (!["usb", "serial", "tcp"].includes(mode) ||
         !Number.isInteger(port) || port < 1 || port > 65535 ||
         !Number.isInteger(baud) || baud < 50 || baud > 4000000 ||
-        ![5, 6, 7, 8].includes(Number(b.dataBits)) || ![1, 2].includes(Number(b.stopBits)) ||
-        !["none", "even", "odd", "mark", "space"].includes(b.parity) ||
+        ![5, 6, 7, 8].includes(dataBits) || ![1, 2].includes(stopBits) ||
+        !["none", "even", "odd", "mark", "space"].includes(parity) ||
         (mode === "tcp" && (!host || /[\s/]/.test(host))) ||
-        (mode !== "tcp" && !/^(COM[0-9]+|\/dev\/(usb\/lp[0-9]+|tty(USB|ACM|S|AMA)[0-9]+|serial\/by-id\/[^/]+))$/i.test(device))) {
+        (mode !== "tcp" && (b.enabled === "on" || device) && !/^(COM[0-9]+|\/dev\/(usb\/lp[0-9]+|tty(USB|ACM|S|AMA)[0-9]+|serial\/by-id\/[^/]+))$/i.test(device))) {
       setFlash(req, "error", "Revisa conexion, direccion y parametros de la impresora.");
       return res.redirect("/settings");
     }
     db.setAppSettings({ printer_enabled: String(b.enabled === "on"), printer_mode: mode,
       printer_host: host, printer_port: String(port), printer_device: device,
-      printer_baud: String(baud), printer_data_bits: String(b.dataBits), printer_stop_bits: String(b.stopBits),
-      printer_parity: b.parity, printer_rtscts: String(b.rtscts === "on") });
+      printer_baud: String(baud), printer_data_bits: String(dataBits), printer_stop_bits: String(stopBits),
+      printer_parity: parity, printer_rtscts: String(rtscts) });
     triggerPrintWorker();
     setFlash(req, "success", "Impresora guardada. Los trabajos pendientes se reintentan automaticamente.");
     return res.redirect("/settings");

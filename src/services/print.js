@@ -123,9 +123,54 @@ function withEllipsis(line, originalValue, wrapAt, maxLines, index) {
 
 function resolveDevicePath(devicePath) {
   if (process.platform === "linux" && devicePath.startsWith("/dev/") && require("fs").existsSync("/host-dev")) {
-    return "/host-dev/" + devicePath.slice(5);
+    const target = "/host-dev/" + devicePath.slice(5);
+    try {
+      if (require("fs").lstatSync(target).isSymbolicLink()) {
+        const link = require("fs").readlinkSync(target);
+        const resolved = require("path").resolve(require("path").dirname(target), link);
+        return resolved.startsWith("/dev/") ? "/host-dev" + resolved.slice(4) : resolved;
+      }
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
+    return target;
   }
   return devicePath;
+}
+
+async function listPrinterDevices() {
+  const devices = [];
+  if (process.platform === "linux") {
+    // En Docker, /dev del servidor esta montado en /host-dev.
+    const root = require("fs").existsSync("/host-dev") ? "/host-dev" : "/dev";
+    const scan = async (directory, pattern, mode, prefix) => {
+      let names;
+      try { names = await fs.readdir(directory); }
+      catch (error) { if (error.code === "ENOENT") return; throw error; }
+      for (const name of names.filter(name => pattern.test(name)).sort()) {
+        const target = require("path").join(directory, name);
+        try {
+          // by-id contiene enlaces absolutos del host: resolverlos dentro del montaje.
+          const info = await fs.lstat(target);
+          let actual = target;
+          if (info.isSymbolicLink()) {
+            const link = await fs.readlink(target);
+            actual = require("path").resolve(directory, link);
+            if (root === "/host-dev" && actual.startsWith("/dev/")) actual = root + actual.slice(4);
+          }
+          if (!(await fs.stat(actual)).isCharacterDevice()) continue;
+          devices.push({ mode, path: prefix + name, label: name });
+        } catch (error) { if (!["ENOENT", "ENODEV"].includes(error.code)) throw error; }
+      }
+    };
+    await scan(root + "/usb", /^lp[0-9]+$/, "usb", "/dev/usb/");
+    await scan(root, /^tty(USB|ACM|S|AMA)[0-9]+$/, "serial", "/dev/");
+    await scan(root + "/serial/by-id", /./, "serial", "/dev/serial/by-id/");
+  } else {
+    const { SerialPort } = require("serialport");
+    for (const port of await SerialPort.list()) {
+      devices.push({mode:"serial", path:port.path, label:[port.path, port.manufacturer, port.serialNumber].filter(Boolean).join(" - ")});
+    }
+  }
+  return devices;
 }
 
 async function sendZplToPrinter({ mode, host, port, devicePath, zpl, baudRate = 9600, dataBits = 8, stopBits = 1, parity = "none", rtscts = false }) {
@@ -209,4 +254,5 @@ module.exports = {
   ENTRY_ZPL_TEMPLATE,
   buildEntryZpl,
   sendZplToPrinter,
+  listPrinterDevices,
 };
