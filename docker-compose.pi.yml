@@ -1,4 +1,11 @@
+# Linux/Raspberry: permite conectar y desconectar impresoras sin recrear la web.
 services:
   app:
-    devices:
-      - "${PRINTER_DEVICE:-/dev/usb/lp0}:${PRINTER_DEVICE:-/dev/usb/lp0}"
+    volumes:
+      - /dev:/host-dev
+    device_cgroup_rules:
+      - 'c 180:* rw'
+      - 'c 188:* rw'
+      - 'c 166:* rw'
+      - 'c 4:* rw'
+      - 'c 204:* rw'

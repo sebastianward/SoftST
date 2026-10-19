@@ -352,7 +352,7 @@ Capacidades visibles hoy:
 
 ### Raspberry / USB
 
-`docker-compose.pi.yml` agrega mapping del device de impresora USB:
+`docker-compose.pi.yml` permite dispositivos USB/serial opcionales (sin exigir que esten conectados al iniciar):
 
 - `${PRINTER_DEVICE:-/dev/usb/lp0}`
 
@@ -408,3 +408,8 @@ Hoy el software ya cubre correctamente:
 - la etiqueta ZPL actual es mas reducida que la descrita en el handoff viejo
 - la eliminacion de ingresos es logica, no fisica
 - no hay tests automatizados en el proyecto
+
+
+## Actualizacion de impresoras opcionales
+
+Ver README: configuracion de USB, serial/COM y Ethernet desde el panel de administracion, cola persistente con reintentos y despliegue de Raspberry sin dispositivo obligatorio. Los parametros guardados en SQLite prevalecen sobre .env.

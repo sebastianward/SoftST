@@ -3,3 +3,7 @@ npm-debug.log
 .git
 data
 uploads
+
+.env
+.env.*
+CREDENCIALES_INTERNAS.md

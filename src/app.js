@@ -452,6 +452,23 @@ function backfillWorkerEmailsAndAccounts() {
   });
 }
 
+function getPrinterSettings() {
+  const saved = db.getAppSettings({});
+  const value = (key, env, fallback) => saved[key] ?? process.env[env] ?? fallback;
+  return {
+    enabled: String(value("printer_enabled", "PRINT_ENABLED", "false")) === "true",
+    mode: value("printer_mode", "PRINTER_MODE", "tcp"),
+    host: value("printer_host", "PRINTER_HOST", ""),
+    port: Number(value("printer_port", "PRINTER_PORT", 9100)),
+    devicePath: value("printer_device", "PRINTER_DEVICE", "/dev/usb/lp0"),
+    baudRate: Number(value("printer_baud", "PRINTER_BAUD_RATE", 9600)),
+    dataBits: Number(value("printer_data_bits", "PRINTER_DATA_BITS", 8)),
+    stopBits: Number(value("printer_stop_bits", "PRINTER_STOP_BITS", 1)),
+    parity: value("printer_parity", "PRINTER_PARITY", "none"),
+    rtscts: String(value("printer_rtscts", "PRINTER_RTSCTS", "false")) === "true",
+  };
+}
+
 function getAppSettings() {
   return db.getAppSettings(appSettingsDefaults);
 }
@@ -1027,7 +1044,7 @@ function queuePrintJob(entryId, reason) {
     [
       Number(entryId),
       process.env.PRINTER_NAME || "gk420t",
-      process.env.PRINTER_MODE || "zpl",
+      getPrinterSettings().mode,
       reason,
       zplContent,
     ]
@@ -1099,23 +1116,9 @@ async function processPendingPrintJobs() {
   printWorkerRunning = true;
 
   try {
-    const enabled = String(process.env.PRINT_ENABLED || "false").toLowerCase() === "true";
-    const printerMode = String(process.env.PRINTER_MODE || "tcp").toLowerCase();
-    const host = process.env.PRINTER_HOST || "";
-    const port = Number(process.env.PRINTER_PORT || 9100);
-    const devicePath = process.env.PRINTER_DEVICE || "/dev/usb/lp0";
-
-    if (!enabled) {
-      return;
-    }
-
-    if (printerMode === "usb" && !devicePath) {
-      return;
-    }
-
-    if (printerMode !== "usb" && !host) {
-      return;
-    }
+    const printer = getPrinterSettings();
+    if (!printer.enabled) return;
+    if (printer.mode === "tcp" && !printer.host) return;
 
     const jobs = db.all(
       `SELECT id, zpl_content
@@ -1132,13 +1135,7 @@ async function processPendingPrintJobs() {
           [Number(job.id)]
         );
 
-        await sendZplToPrinter({
-          mode: printerMode,
-          host,
-          port,
-          devicePath,
-          zpl: job.zpl_content || "",
-        });
+        await sendZplToPrinter({ ...printer, zpl: job.zpl_content || "" });
 
         db.run(
           "UPDATE print_jobs SET status = 'printed', processed_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -1146,9 +1143,10 @@ async function processPendingPrintJobs() {
         );
       } catch (error) {
         db.run(
-          "UPDATE print_jobs SET status = 'failed', error_message = ?, processed_at = CURRENT_TIMESTAMP WHERE id = ?",
+          "UPDATE print_jobs SET status = 'pending', error_message = ?, processed_at = NULL WHERE id = ?",
           [String(error.message || error), Number(job.id)]
         );
+        break; // Conservar orden y esperar al proximo intento (15 s).
       }
     }
   } finally {
@@ -1180,6 +1178,8 @@ async function bootstrap() {
       area: "servicio_tecnico",
     },
   ]);
+  // Una caida durante el envio no debe bloquear la cola para siempre.
+  db.run("UPDATE print_jobs SET status = 'pending', error_message = 'Envio interrumpido; pendiente de reintento' WHERE status IN ('processing', 'failed')");
   backfillWorkerEmailsAndAccounts();
   backfillNotifications();
   initializeNotificationMailCutoff();
@@ -2192,7 +2192,35 @@ async function bootstrap() {
   app.get("/settings", requireAuth, requireAdmin, (req, res) => {
     res.render("settings", {
       settings: getAppSettings(),
+      printer: getPrinterSettings(),
+      printJobs: db.all("SELECT id, entry_id, status, error_message, attempts FROM print_jobs ORDER BY id DESC LIMIT 30"),
     });
+  });
+
+  app.post("/settings/printer", requireAuth, requireAdmin, (req, res) => {
+    const b = req.body;
+    const mode = String(b.mode || "");
+    const port = Number(b.port);
+    const baud = Number(b.baudRate);
+    const device = String(b.devicePath || "").trim();
+    const host = String(b.host || "").trim();
+    if (!["usb", "serial", "tcp"].includes(mode) ||
+        !Number.isInteger(port) || port < 1 || port > 65535 ||
+        !Number.isInteger(baud) || baud < 50 || baud > 4000000 ||
+        ![5, 6, 7, 8].includes(Number(b.dataBits)) || ![1, 2].includes(Number(b.stopBits)) ||
+        !["none", "even", "odd", "mark", "space"].includes(b.parity) ||
+        (mode === "tcp" && (!host || /[\s/]/.test(host))) ||
+        (mode !== "tcp" && !/^(COM[0-9]+|\/dev\/(usb\/lp[0-9]+|tty(USB|ACM|S|AMA)[0-9]+|serial\/by-id\/[^/]+))$/i.test(device))) {
+      setFlash(req, "error", "Revisa conexion, direccion y parametros de la impresora.");
+      return res.redirect("/settings");
+    }
+    db.setAppSettings({ printer_enabled: String(b.enabled === "on"), printer_mode: mode,
+      printer_host: host, printer_port: String(port), printer_device: device,
+      printer_baud: String(baud), printer_data_bits: String(b.dataBits), printer_stop_bits: String(b.stopBits),
+      printer_parity: b.parity, printer_rtscts: String(b.rtscts === "on") });
+    triggerPrintWorker();
+    setFlash(req, "success", "Impresora guardada. Los trabajos pendientes se reintentan automaticamente.");
+    return res.redirect("/settings");
   });
 
   app.post("/settings", requireAuth, requireAdmin, upload.single("mailBanner"), (req, res) => {

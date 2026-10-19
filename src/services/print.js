@@ -121,10 +121,58 @@ function withEllipsis(line, originalValue, wrapAt, maxLines, index) {
   return line.length > 3 ? `${line.slice(0, Math.max(0, line.length - 3))}...` : `${line}...`;
 }
 
-async function sendZplToPrinter({ mode, host, port, devicePath, zpl }) {
+function resolveDevicePath(devicePath) {
+  if (process.platform === "linux" && devicePath.startsWith("/dev/") && require("fs").existsSync("/host-dev")) {
+    return "/host-dev/" + devicePath.slice(5);
+  }
+  return devicePath;
+}
+
+async function sendZplToPrinter({ mode, host, port, devicePath, zpl, baudRate = 9600, dataBits = 8, stopBits = 1, parity = "none", rtscts = false }) {
+  if (mode === "serial") {
+    const { SerialPort } = require("serialport");
+    return new Promise((resolve, reject) => {
+      const serial = new SerialPort({ path: resolveDevicePath(devicePath), baudRate, dataBits, stopBits, parity, rtscts, autoOpen: false });
+      let finished = false;
+      const done = (error) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        if (serial.isOpen) serial.close(() => {});
+        error ? reject(error) : resolve(true);
+      };
+      const timer = setTimeout(() => done(new Error("Timeout de impresora serial")), 8000);
+      serial.on("error", done);
+      serial.on("close", () => { if (!finished) done(new Error("Impresora serial desconectada")); });
+      serial.open((error) => {
+        if (finished) { if (!error && serial.isOpen) serial.close(() => {}); return; }
+        if (error) return done(error);
+        serial.write(zpl, "utf8", (error) => {
+          if (finished) return;
+          if (error) return done(error);
+          serial.drain(done);
+        });
+      });
+    });
+  }
+  if (!["usb", "tcp"].includes(mode || "tcp")) throw new Error("Modo de impresora no valido");
   if ((mode || "tcp") === "usb") {
-    const target = devicePath || "/dev/usb/lp0";
-    await fs.writeFile(target, zpl, { encoding: "utf8" });
+    const target = resolveDevicePath(devicePath || "/dev/usb/lp0");
+    // Nunca crear un archivo si el dispositivo ha desaparecido.
+    const handle = await fs.open(target, require("fs").constants.O_WRONLY | require("fs").constants.O_NONBLOCK);
+    try {
+      const stat = await handle.stat();
+      if (!stat.isCharacterDevice()) throw new Error("La ruta no es un dispositivo de impresora");
+      const data = Buffer.from(zpl, "utf8");
+      let offset = 0;
+      while (offset < data.length) {
+        const { bytesWritten } = await handle.write(data, offset, data.length - offset);
+        if (!bytesWritten) throw new Error("La impresora no acepta datos");
+        offset += bytesWritten;
+      }
+    } finally {
+      await handle.close();
+    }
     return true;
   }
 

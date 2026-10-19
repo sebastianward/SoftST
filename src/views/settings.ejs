@@ -67,6 +67,35 @@
       </div>
     </form>
   </section>
+  <section class="panel settings-panel">
+    <h2>Impresora de etiquetas ZPL</h2>
+    <p>Si no hay impresora, la pagina sigue funcionando y los trabajos quedan en espera. Reintento automatico cada 15 segundos.</p>
+    <form action="/settings/printer" method="post" class="settings-form">
+      <label class="checkbox-row"><input type="checkbox" name="enabled" <%= printer.enabled ? 'checked' : '' %>> Activar envio de impresiones pendientes</label>
+      <div class="settings-grid">
+        <label>Conexion<select name="mode">
+          <% for (const [value, label] of [['usb', 'USB directo'], ['serial', 'Serial / COM'], ['tcp', 'Ethernet (TCP / ZPL)']]) { %>
+            <option value="<%= value %>" <%= printer.mode === value ? 'selected' : '' %>><%= label %></option>
+          <% } %>
+        </select></label>
+        <label>IP o nombre de red (Ethernet)<input name="host" value="<%= printer.host %>" placeholder="192.168.1.50"></label>
+        <label>Puerto Ethernet<input name="port" type="number" min="1" max="65535" value="<%= printer.port %>" required></label>
+        <label>Dispositivo USB o puerto serial<input name="devicePath" value="<%= printer.devicePath %>" placeholder="/dev/usb/lp0, /dev/ttyUSB0 o COM3"></label>
+        <label>Velocidad serial (baudios)<input name="baudRate" type="number" min="50" max="4000000" value="<%= printer.baudRate %>" required></label>
+        <label>Bits de datos<select name="dataBits"><% for (const n of [5,6,7,8]) { %><option <%= printer.dataBits === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
+        <label>Bits de parada<select name="stopBits"><% for (const n of [1,2]) { %><option <%= printer.stopBits === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
+        <label>Paridad<select name="parity"><% for (const n of ['none','even','odd','mark','space']) { %><option <%= printer.parity === n ? 'selected' : '' %>><%= n %></option><% } %></select></label>
+      </div>
+      <label class="checkbox-row"><input type="checkbox" name="rtscts" <%= printer.rtscts ? 'checked' : '' %>> Control de flujo serial RTS/CTS</label>
+      <p>Usa puertos del servidor: COM3 en Windows, /dev/ttyUSB0 o /dev/serial/by-id/... en Raspberry. Ethernet suele usar el puerto 9100. La impresora debe aceptar ZPL.</p>
+      <button type="submit">Guardar impresora</button>
+    </form>
+    <h3>Ultimos 30 trabajos</h3>
+    <p>Enviada indica entrega al dispositivo; no confirma que la etiqueta haya salido fisicamente. Si una conexion se corta durante el envio, el reintento puede repetir una etiqueta.</p>
+    <div style="overflow-x:auto"><table><thead><tr><th>Trabajo</th><th>Ingreso</th><th>Estado</th><th>Intentos</th><th>Ultimo error</th></tr></thead><tbody>
+    <% for (const job of printJobs) { %><tr><td><%= job.id %></td><td><%= job.entry_id %></td><td><%= ({pending:'En espera',failed:'En espera',processing:'Enviando',printed:'Enviada'})[job.status] || job.status %></td><td><%= job.attempts %></td><td><%= job.error_message || '-' %></td></tr><% } %>
+    </tbody></table></div>
+  </section>
 </main>
 
 <%- include("partials/foot") %>
