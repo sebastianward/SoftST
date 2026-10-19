@@ -8,7 +8,7 @@ const bcrypt = require("bcryptjs");
 const dotenv = require("dotenv");
 const DatabaseService = require("./services/db");
 const { requireAuth, requireAdmin, requireAdminOrOperator } = require("./middleware/auth");
-const { buildEntryZpl, sendZplToPrinter, listPrinterDevices } = require("./services/print");
+const { buildEntryZpl, sendZplToPrinter, listPrinterDevices, checkPrinterConnection } = require("./services/print");
 const { sendCreatedEntryEmail, sendNotificationDueEmail } = require("./services/mail");
 
 dotenv.config();
@@ -456,7 +456,6 @@ function getPrinterSettings() {
   const saved = db.getAppSettings({});
   const value = (key, env, fallback) => saved[key] ?? process.env[env] ?? fallback;
   return {
-    enabled: String(value("printer_enabled", "PRINT_ENABLED", "false")) === "true",
     mode: value("printer_mode", "PRINTER_MODE", "tcp"),
     host: value("printer_host", "PRINTER_HOST", ""),
     port: Number(value("printer_port", "PRINTER_PORT", 9100)),
@@ -1117,7 +1116,7 @@ async function processPendingPrintJobs() {
 
   try {
     const printer = getPrinterSettings();
-    if (!printer.enabled) return;
+    if (printer.mode !== "tcp" && !printer.devicePath) return;
     if (printer.mode === "tcp" && !printer.host) return;
 
     const jobs = db.all(
@@ -1758,10 +1757,8 @@ async function bootstrap() {
        LIMIT 1`
     );
     ensureNotificationsForEntry(newEntry);
-    if (String(process.env.PRINT_AUTO_ON_CREATE || "true").toLowerCase() === "true") {
-      queuePrintJob(newEntry.id, "auto_create");
-      triggerPrintWorker();
-    }
+    queuePrintJob(newEntry.id, "auto_create");
+    triggerPrintWorker();
 
     const currentSettings = getAppSettings();
 
@@ -2206,6 +2203,21 @@ async function bootstrap() {
     });
   });
 
+  app.get("/settings/printer/status", requireAuth, requireAdmin, async (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    const printer = getPrinterSettings();
+    const connection = await checkPrinterConnection(printer);
+    const lastFailure = db.get("SELECT error_message FROM print_jobs WHERE status = 'pending' AND error_message IS NOT NULL ORDER BY id ASC LIMIT 1");
+    res.json({ ...connection, checkedAt: new Date().toISOString(), lastError: lastFailure?.error_message || null });
+  });
+
+  app.post("/settings/printer/check", requireAuth, requireAdmin, async (req, res) => {
+    const host = String(req.body.host || "").trim();
+    const port = Number(req.body.port);
+    res.set("Cache-Control", "no-store");
+    res.json(await checkPrinterConnection({ mode: "tcp", host, port }));
+  });
+
   app.post("/settings/printer", requireAuth, requireAdmin, (req, res) => {
     const b = req.body;
     const mode = String(b.mode || "");
@@ -2224,11 +2236,11 @@ async function bootstrap() {
         ![5, 6, 7, 8].includes(dataBits) || ![1, 2].includes(stopBits) ||
         !["none", "even", "odd", "mark", "space"].includes(parity) ||
         (mode === "tcp" && (!host || /[\s/]/.test(host))) ||
-        (mode !== "tcp" && (b.enabled === "on" || device) && !/^(COM[0-9]+|\/dev\/(usb\/lp[0-9]+|tty(USB|ACM|S|AMA)[0-9]+|serial\/by-id\/[^/]+))$/i.test(device))) {
+        (mode !== "tcp" && device && !/^(COM[0-9]+|\/dev\/(usb\/lp[0-9]+|tty(USB|ACM|S|AMA)[0-9]+|serial\/by-id\/[^/]+))$/i.test(device))) {
       setFlash(req, "error", "Revisa conexion, direccion y parametros de la impresora.");
       return res.redirect("/settings");
     }
-    db.setAppSettings({ printer_enabled: String(b.enabled === "on"), printer_mode: mode,
+    db.setAppSettings({ printer_mode: mode,
       printer_host: host, printer_port: String(port), printer_device: device,
       printer_baud: String(baud), printer_data_bits: String(dataBits), printer_stop_bits: String(stopBits),
       printer_parity: parity, printer_rtscts: String(rtscts) });

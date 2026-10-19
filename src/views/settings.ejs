@@ -70,11 +70,13 @@
   <section class="panel settings-panel">
     <h2>Impresora de etiquetas ZPL</h2>
     <p>Si no hay impresora, la pagina sigue funcionando y los trabajos quedan en espera. Reintento automatico cada 15 segundos.</p>
+    <p id="printer-status" role="status" aria-live="polite">Comprobando conexion guardada...</p>
+    <p id="printer-last-error"></p>
+    <p>El envio es automatico: si la impresora no esta disponible, los trabajos quedan en espera y se reintentan al recuperar la conexion.</p>
     <form action="/settings/printer" method="post" class="settings-form" id="printer-form">
-      <label class="checkbox-row"><input type="checkbox" name="enabled" <%= printer.enabled ? 'checked' : '' %>> Activar envio de impresiones pendientes</label>
       <label>Tipo de conexion<select name="mode" id="printer-mode">
         <% for (const [value, label] of [['usb', 'USB directo'], ['serial', 'Serial / COM'], ['tcp', 'Ethernet (red)']]) { %>
-          <option value="<%= value %>" <%= printer.mode === value ? 'selected' : '' %>><%= label %></option>
+          <option value="<%= value %>" <%= printer.mode === value ? 'selected' : '' %>><%= label %><%= value === 'usb' && !printerDevices.some(d => d.mode === 'usb') ? ' - USB no disponible' : value === 'serial' && !printerDevices.some(d => d.mode === 'serial') ? ' - COM no disponible' : '' %></option>
         <% } %>
       </select></label>
       <p>Se muestran las impresoras y puertos conectados al servidor donde funciona SoftST.</p>
@@ -116,6 +118,9 @@
           <label>Direccion IP o nombre de la impresora<input name="host" value="<%= printer.host %>" placeholder="192.168.1.50" required></label>
           <label>Puerto de red<input name="port" type="number" min="1" max="65535" value="<%= printer.port %>" required></label>
         </div>
+        <button type="button" id="check-printer-network">Comprobar conexion</button>
+        <p id="printer-network-result" role="status" aria-live="polite"></p>
+        <p>La comprobacion abre el puerto sin enviar etiquetas. No consulta papel ni estado fisico.</p>
         <p>La impresora debe aceptar ZPL por TCP. El puerto habitual es 9100.</p>
       </fieldset>
       <button type="submit">Guardar impresora</button>

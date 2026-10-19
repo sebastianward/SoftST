@@ -36,7 +36,7 @@ test('serial ausente rechaza sin derribar el proceso', async () => {
   await assert.rejects(sendZplToPrinter({mode:'serial',devicePath:process.platform === 'win32' ? 'COM9999' : '/dev/ttyUSB9999',zpl:'test'}));
 });
 
-test('cola persistente: desconexion, orden, recuperacion y pausa', async () => {
+test('cola persistente: desconexion, orden, recuperacion automatica', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'softst-queue-'));
   try {
     const db = new Database({dbPath:path.join(dir,'app.sqlite')});
@@ -55,10 +55,7 @@ test('cola persistente: desconexion, orden, recuperacion y pausa', async () => {
     const reopened = new Database({dbPath:path.join(dir,'app.sqlite')});
     await reopened.init([]);
     assert.equal(reopened.get('SELECT status FROM print_jobs WHERE id=1').status,'pending');
-    connected = true; enabled = false;
-    await ctx.processPendingPrintJobs();
-    assert.deepEqual(sent,[]);
-    enabled = true;
+    connected = true; enabled = false; // Una preferencia antigua no debe pausar la cola.
     await Promise.all([ctx.processPendingPrintJobs(),ctx.processPendingPrintJobs()]);
     assert.deepEqual(sent,['job1','job2']);
     assert.equal(db.get("SELECT COUNT(*) AS n FROM print_jobs WHERE status='printed'").n,2);
@@ -71,7 +68,7 @@ test('web inicia sin impresora y admin guarda configuracion persistente', async 
   await new Promise(resolve=>probe.listen(0,'127.0.0.1',resolve));
   const port = probe.address().port;
   await new Promise(resolve=>probe.close(resolve));
-  const child = spawn(process.execPath,['src/app.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:path.join(dir,'data'),UPLOAD_DIR:path.join(dir,'uploads'),PRINT_ENABLED:'true',PRINTER_MODE:'usb',PRINTER_DEVICE:'/dev/usb/lp9999',ADMIN_USERNAME:'testadmin',ADMIN_PASSWORD:'testpassword',MAIL_ENABLED:'false',SESSION_SECRET:'test-secret',NODE_ENV:'test'},stdio:'ignore'});
+  const child = spawn(process.execPath,['src/app.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:path.join(dir,'data'),UPLOAD_DIR:path.join(dir,'uploads'),PRINT_ENABLED:'false',PRINT_AUTO_ON_CREATE:'false',PRINTER_MODE:'usb',PRINTER_DEVICE:'/dev/usb/lp9999',ADMIN_USERNAME:'testadmin',ADMIN_PASSWORD:'testpassword',MAIL_ENABLED:'false',SESSION_SECRET:'test-secret',NODE_ENV:'test'},stdio:'ignore'});
   const base = `http://127.0.0.1:${port}`;
   try {
     let ready = false;
@@ -82,14 +79,16 @@ test('web inicia sin impresora y admin guarda configuracion persistente', async 
     assert.equal(login.status,302);
     let page = await fetch(base+'/settings',{headers:{cookie}});
     assert.equal(page.status,200);
-    assert.match(await page.text(),/Serial \/ COM/);
+    const initialPage = await page.text();
+    assert.match(initialPage,/Serial \/ COM/);
+    assert.doesNotMatch(initialPage,/name="enabled"/);
     const save = await fetch(base+'/settings/printer',{method:'POST',redirect:'manual',headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({mode:'serial',devicePath:'COM7',baudRate:'19200',dataBits:'8',stopBits:'1',parity:'none'})});
     assert.equal(save.status,302);
     page = await fetch(base+'/settings',{headers:{cookie}});
     assert.match(await page.text(),/value="COM7"/);
     const stored = new Database({dbPath:path.join(dir,'data','app.sqlite')});await stored.init([]);
     assert.equal(stored.getAppSettings({}).printer_baud,'19200');
-    assert.equal(stored.getAppSettings({}).printer_enabled,'false');
+    assert.equal(stored.getAppSettings({}).printer_enabled,undefined);
     await fetch(base+'/settings/printer',{method:'POST',redirect:'manual',headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({mode:'serial',devicePath:'../../bad',port:'9100',baudRate:'19200',dataBits:'8',stopBits:'1',parity:'none'})});
     page = await fetch(base+'/settings',{headers:{cookie}});
     assert.match(await page.text(),/value="COM7"/);
@@ -100,6 +99,11 @@ test('web inicia sin impresora y admin guarda configuracion persistente', async 
     assert.match(ethernetPage,/value="19200"/);
     assert.match(ethernetPage,/data-printer-mode="serial" hidden disabled/);
     assert.match(ethernetPage,/data-printer-mode="tcp" >/);
+    const statusResponse = await fetch(base+'/settings/printer/status',{headers:{cookie}});
+    assert.equal(statusResponse.status,200);
+    assert.equal(typeof (await statusResponse.json()).available,'boolean');
+    const invalidCheck = await fetch(base+'/settings/printer/check',{method:'POST',headers:{cookie,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({host:'',port:'bad'})});
+    assert.equal((await invalidCheck.json()).available,false);
     const anonymous = await fetch(base+'/settings/printer',{method:'POST',redirect:'manual'});
     assert.equal(anonymous.headers.get('location'),'/login');
   } finally { child.kill(); await new Promise(resolve=>child.once('exit',resolve)); fs.rmSync(dir,{recursive:true,force:true}); }
@@ -159,8 +163,21 @@ test('selector muestra solamente campos del modo activo', () => {
   const sections=['usb','serial','tcp'].map(value=>({dataset:{printerMode:value}}));
   const mode={value:'usb',addEventListener:(_event,cb)=>{mode.change=cb;}};
   const form={querySelector:()=>mode,querySelectorAll:()=>sections};
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/public/js/printer-settings.js'),'utf8'),{document:{getElementById:()=>form}});
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/public/js/printer-settings.js'),'utf8'),{document:{getElementById:id=>id === 'printer-form' ? form : null}});
   assert.equal(sections[0].hidden,false); assert.equal(sections[1].disabled,true);
   mode.value='tcp';mode.change();
   assert.equal(sections[0].disabled,true);assert.equal(sections[1].hidden,true);assert.equal(sections[2].disabled,false);
+});
+
+test('comprobacion Ethernet no envia datos y detecta puerto cerrado', async () => {
+  const {checkPrinterConnection} = require('../src/services/print');
+  let bytes = 0;
+  const server = net.createServer(socket=>socket.on('data',data=>bytes+=data.length));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const port=server.address().port;
+  assert.equal((await checkPrinterConnection({mode:'tcp',host:'127.0.0.1',port})).available,true);
+  await new Promise(resolve=>server.close(resolve));
+  assert.equal(bytes,0);
+  assert.equal((await checkPrinterConnection({mode:'tcp',host:'127.0.0.1',port})).available,false);
+  assert.equal((await checkPrinterConnection({mode:'tcp',host:'',port})).available,false);
 });

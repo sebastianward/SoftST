@@ -173,6 +173,40 @@ async function listPrinterDevices() {
   return devices;
 }
 
+async function checkPrinterConnection(printer) {
+  if (printer.mode === "tcp") {
+    if (!printer.host || /[\s/]/.test(printer.host) || !Number.isInteger(Number(printer.port)) || Number(printer.port) < 1 || Number(printer.port) > 65535) {
+      return { available: false, message: "Configura una IP y un puerto validos." };
+    }
+    return new Promise(resolve => {
+      const socket = new net.Socket();
+      let finished = false;
+      const done = (available, message) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        socket.destroy();
+        resolve({ available, message });
+      };
+      // Limite total: incluye tambien la resolucion del nombre de red.
+      const timer = setTimeout(() => done(false, "Sin conexion: tiempo de espera agotado."), 3000);
+      socket.once("error", () => done(false, "Sin conexion con la IP y el puerto configurados."));
+      socket.connect(Number(printer.port), printer.host, () => done(true, "Conexion disponible en el puerto de impresion."));
+    });
+  }
+  if (!["usb", "serial"].includes(printer.mode)) return {available:false, message:"Selecciona un tipo de conexion."};
+  if (!printer.devicePath) return {available:false, message:"Selecciona un dispositivo."};
+  try {
+    const devices = await listPrinterDevices();
+    if (!devices.some(device => device.mode === printer.mode && device.path === printer.devicePath)) {
+      return {available:false, message:printer.mode === "usb" ? "USB no disponible: impresora desconectada." : "COM no disponible: puerto desconectado."};
+    }
+    return {available:true, message:"Dispositivo detectado. El resultado de los envios aparece en la cola."};
+  } catch {
+    return {available:false, message:"No se pudo consultar el dispositivo."};
+  }
+}
+
 async function sendZplToPrinter({ mode, host, port, devicePath, zpl, baudRate = 9600, dataBits = 8, stopBits = 1, parity = "none", rtscts = false }) {
   if (mode === "serial") {
     const { SerialPort } = require("serialport");
@@ -255,4 +289,5 @@ module.exports = {
   buildEntryZpl,
   sendZplToPrinter,
   listPrinterDevices,
+  checkPrinterConnection,
 };
